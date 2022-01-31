@@ -1,4 +1,4 @@
-version = '0.3.1';
+version = '0.4.0';
 printf(['OctCLA v' version '\n'])
 
 % This file octcla.m is part of OctCLA, Copyright (c) 2022 Josh Fogg, released
@@ -99,7 +99,7 @@ function result = kkt_full(lb, ub, d, w_t, covar, lam, mu, gam,
     % bound constraints (lb, ub) and then returns true if that solution passes
     % the KKT conditions and false otherwise.
     %
-    % Takes an optional bool variable `debug` which prints which condition was
+    % Takes an optional bool variable (debug) which prints which condition was
     % broken and the relevant values. Takes another optional float input which
     % is the tollerance to which the conditions are verified.
     %
@@ -166,7 +166,7 @@ function result = kkt_equiv(covar, w, lam, gam, mu, B, F,
     % KKT_FULL, and then returns true if that solution passes the KKT conditions
     % and false otherwise.
     %
-    % Takes an optional bool variable `debug` which prints which condition was
+    % Takes an optional bool variable (debug) which prints which condition was
     % broken and the relevant values. Takes another optional float input which
     % is the tollerance to which the conditions are verified.
     %
@@ -206,10 +206,10 @@ end
 function [F, B, w] = starting_solution(mu, lb, ub)
     % STARTING_SOLUTION return starting solution for CLA
     %
-    % Takes a vector mu of expected returns, a vector lb of lower bounds on
-    % assest weights, and a vector ub of upper bounds on asset weights, then
-    % returns the starting solution for CLA in the form of an index list F of
-    % free assests and starting weight vector w.
+    % Takes a vector of expected returns (mu), a vector of lower bounds on assest
+    % weights (lb), and a vector of upper bounds on asset weights (ub) as input,
+    % then returns the starting solution for CLA in the form of an index list of
+    % (F)ree and (B)ounded assests and starting weight vector (w).
     %
     % See also, CALCULATE_TURNINGPOINTS
 
@@ -229,15 +229,21 @@ function [F, B, w] = starting_solution(mu, lb, ub)
     B = B(B ~= i_free);
 end
 
-% NOTE added a B argument which isn't in the original, need to check if it can be removed
-% NOTE also added a d vector which is related to the KKD conditions check
-function [ins, lam_ins, b_ins, d] = move_to_bound(mu, covar, invcovarF, lb, ub, F, B, lam_current, w)
+% TODO added a B argument which isn't in the original, need to check if it can be removed
+function [ins, lam_ins, b_ins, d] = move_to_bound(mu, covar, invcovarF, lb, ub, F, B,
+                                                  lam_current, w, KKT)
     % MOVE_TO_BOUND handle the CLA case where an asset moves to its bound
     %
-    % Takes a vector mu of expected returns, a covariance matrix covar, a
-    % vector lb of lower bounds on assest weights, and a vector ub of upper
-    % bounds on asset weights, then returns the i, lambda, and bound of the
-    % asset which would move to its bound.
+    % As input, takes a vector (mu) of expected returns, a covariance matrix (covar),
+    % the inverse of that covar when restricted to free assets (invcovarF), a vector
+    % of lower bounds on assest weights (lb), a vector of upper bounds on asset
+    % weights (ub), index sets for the free (F) and bounded (B) asset, the current
+    % lambda (lam_current), the current weight vector (w), and the type of KKT
+    % check being carried out (KKT).
+    %
+    % As output, returns the i (ins), lambda (lam_ins), and bound (b_ins) of the asset
+    % which would move to its bound. If running a full KKT check, also returns the grad
+    % vector (d) which indicates which bounds each asset is moving towards.
     %
     % See also, CALCULATE_TURNINGPOINTS
 
@@ -276,7 +282,7 @@ function [ins, lam_ins, b_ins, d] = move_to_bound(mu, covar, invcovarF, lb, ub, 
             continue  % TODO check how properly to handle this
         end
 
-        % calculate lambda using shortcuts TODO this could really be tidied up
+        % calculate lambda using shortcuts  % TODO this could really be tidied up
         if isempty(B)
             lami_p2 = sum(sum(invcovarF))*b(i);
         else
@@ -285,8 +291,14 @@ function [ins, lam_ins, b_ins, d] = move_to_bound(mu, covar, invcovarF, lb, ub, 
 
         lam(i) = (lam_p1(j)-lami_p2)/C(j);
     end
-    d = b;
-    d(B) = w(B);
+
+    % only need d if running the full KKT check
+    if (KKT == 1) || (KKT == 3)
+        d = b;
+        d(B) = w(B);
+    else
+        d = NA;
+    end
 
     [ins, lam_ins] = argmax(lam, lam_current);
     if isnan(ins)
@@ -296,14 +308,22 @@ function [ins, lam_ins, b_ins, d] = move_to_bound(mu, covar, invcovarF, lb, ub, 
     end
 end
 
-% NOTE added a B argument which isn't in the original, need to check if it can be removed
-function [outs, lam_outs, d] = becomes_free(mu, covar, invcovarF, lb, ub, F, B, lam_current, w)
+% TODO added a B argument which isn't in the original, need to check if it can be removed
+function [outs, lam_outs, d] = becomes_free(mu, covar, invcovarF, lb, ub, F, B,
+                                            lam_current, w, KKT)
     % BECOMES_FREE handle the CLA case where an asset becomes free
+
+    % As input, takes a vector (mu) of expected returns, a covariance matrix (covar),
+    % the inverse of that covar when restricted to free assets (invcovarF), a vector
+    % of lower bounds on assest weights (lb), a vector of upper bounds on asset
+    % weights (ub), index sets for the free (F) and bounded (B) asset, the current
+    % lambda (lam_current), the current weight vector (w), and the type of KKT
+    % check being carried out (KKT).
     %
-    % Takes a vector mu of expected returns, a covariance matrix covar, a
-    % vector lb of lower bounds on assest weights, and a vector ub of upper
-    % bounds on asset weights, then returns the i and lambda of the asset
-    % which moves away from its bound (i.e. which becomes free).
+    % As output, returns the i (outs) and lambda (lam_outs) of the asset which moves
+    % away from its bound (i.e. which becomes free). If running a full KKT check,
+    % also returns the grad vector (d) which indicates which bounds each asset is
+    % moving towards.
     %
     % See also, CALCULATE_TURNINGPOINTS
 
@@ -313,8 +333,11 @@ function [outs, lam_outs, d] = becomes_free(mu, covar, invcovarF, lb, ub, F, B, 
         return
     end
 
-    D   = zeros(length(mu), length(mu));  % matrix of potential d vectors
-    lam = zeros(length(mu), 1);           % lambda vector
+    lam = zeros(length(mu), 1);  % lambda vector
+    % only need D if running the full KKT check
+    if (KKT == 1) || (KKT == 3)
+        D = zeros(length(mu), length(mu));  % matrix of potential d vectors
+    end
 
     for i = B
         % update the inverse
@@ -327,25 +350,27 @@ function [outs, lam_outs, d] = becomes_free(mu, covar, invcovarF, lb, ub, F, B, 
         % need to index outer matrix, as per NOTE A1
         j = length(Fi);  % Fi[j] = i; i last element in Fi by construction
 
-        % calculate derivative TODO find a way to make this somewhat nicer
+        % calculate derivative  % TODO find a way to make this somewhat nicer
         Ci1 = -sum(sum(invcovarFi))*(invcovarFi*mu(Fi));
         Ci2 = (sum(invcovarFi)*mu(Fi))*sum(invcovarFi, 2);
         Ci = Ci1 + Ci2;
 
-        % saving d vector for KKT conditions
-        for l = 1:length(Fi)
-            k = Fi(l);
-            if Ci(l) > 0; D(k, i) = ub(l); end
-            if Ci(l) < 0; D(k, i) = lb(l); end
+        % if running full KKT check, save d vector
+        if (KKT == 1) || (KKT == 3)
+            for l = 1:length(Fi)
+                k = Fi(l);
+                if Ci(l) > 0; D(k, i) = ub(l); end
+                if Ci(l) < 0; D(k, i) = lb(l); end
+            end
+            D(Bi, i) = w(Bi);  % TODO factor this into a KKT if statement
         end
-        D(Bi, i) = w(Bi);
 
         % handle case in NOTE A2
         if isempty(Bi)
             lami_p1 = sum(invcovarFi, 2)(j);
             lami_p2 = sum(sum(invcovarFi))*w(i);
         else
-            % calculate lambda using shortcuts TODO this could really be tidied up
+            % calculate lambda using shortcuts  % TODO this could really be tidied up
             lami_p1 = (1-sum(w(Bi))+sum(invcovarFi)*(covar(Fi,Bi)*w(Bi)))*(sum(invcovarFi,2)(j));
             lami_p2_q2 = invcovarFi*(covar(Fi,Bi)*w(Bi));
             lami_p2 = sum(sum(invcovarFi))*(w(i)+lami_p2_q2(j));
@@ -355,23 +380,24 @@ function [outs, lam_outs, d] = becomes_free(mu, covar, invcovarF, lb, ub, F, B, 
     end
 
     [outs, lam_outs] = argmax(lam, lam_current);
-    if outs ~= NA
-        d = D(:, outs);
-    else
+    % only have d if outs defined and doing full KKT check
+    if (outs == NA) || (KKT == 0) || (KKT == 2)  
         d = NA;
+    else
+        d = D(:, outs);
     end
 end
 
 function ws = calculate_turningpoints(mu, covar, lb, ub, KKT=1)
     % CALCULATE_TURNINGPOINTS return portfolio weights at CLA turning points
     %
-    % Takes a vector mu of expected returns, a covariance matrix covar, a
-    % vector lb of lower bounds on assest weights, and a vector ub of upper
-    % bounds on asset weights, then calculates the turning points of the
-    % corresponding portfolio using the Critical Line Algorithm. The function
-    % returns a matrix of the portfolio asset weights at each of those points.
+    % Takes a vector of expected returns (mu), a covariance matrix (covar), a
+    % vector of lower bounds on assest weights (lb), and a vector of upper bounds
+    %  on asset weights (ub), then calculates the turning points of the corresponding
+    % portfolio using the Critical Line Algorithm. The function returns a matrix
+    % of the portfolio asset weights at each of those points (ws).
     %
-    % Takes an optional integer argument `KKT` which indicates whether calculated
+    % Takes an optional integer argument (KKT) which indicates whether calculated
     % turning points should be verified through a KKT conditions check and if so
     % by what type of check (0: none, 1: simple, 2: full, 3: both). Default is 1.
     %
@@ -388,9 +414,9 @@ function ws = calculate_turningpoints(mu, covar, lb, ub, KKT=1)
 
     while true
         % case a where a free asset moves to its bound
-        [i_ins, lam_ins, b, d_ins] = move_to_bound(mu, covar, invcovarF, lb, ub, F, B, lam_current, ws(:,t));
+        [i_ins, lam_ins, b, d_ins] = move_to_bound(mu, covar, invcovarF, lb, ub, F, B, lam_current, ws(:,t), KKT);
         % case b where an asset on its bound becomes free
-        [i_outs, lam_outs, d_outs] = becomes_free(mu, covar, invcovarF, lb, ub, F, B, lam_current, ws(:,t));
+        [i_outs, lam_outs, d_outs] = becomes_free(mu, covar, invcovarF, lb, ub, F, B, lam_current, ws(:,t), KKT);
 
         if (i_ins ~= NA || i_outs ~= NA)
             lam_current = max(lam_ins, lam_outs);
@@ -402,7 +428,7 @@ function ws = calculate_turningpoints(mu, covar, lb, ub, KKT=1)
             ws(B, t+1) = ws(B, t);
             t = t+1;
 
-            % update gamma TODO make this neater
+            % update gamma  % TODO make this neater
             if isempty(B)
                 gam_top = -lam_current*sum(invcovarF)*mu(F) + 1;
             else
@@ -410,7 +436,7 @@ function ws = calculate_turningpoints(mu, covar, lb, ub, KKT=1)
             end
             gam = gam_top/sum(sum(invcovarF));
 
-            % update w_F^(t) TODO make this neater
+            % update w_F^(t)  % TODO make this neater
             if isempty(B)
                 ws(F,t) = gam*sum(invcovarF,2) + lam_current*(invcovarF*mu(F));
             else
@@ -429,8 +455,9 @@ function ws = calculate_turningpoints(mu, covar, lb, ub, KKT=1)
                 % bound weight i_ins
                 F = F(F ~= i_ins);  % F = F\{i}
                 B = [B, i_ins];     % B = Bu{i}
-                ws(i_ins, t) = b;   % w_i_inside^(t) = b TODO is this line needed?
-                d = d_ins;
+                ws(i_ins, t) = b;   % w_i_inside^(t) = b  % TODO is this line needed?
+                % only need to update d if doing full KKT check
+                if (KKT == 1) || (KKT == 3); d = d_ins; end
             else
                 % update the inverse
                 a = covar(F, i_outs);
@@ -439,37 +466,38 @@ function ws = calculate_turningpoints(mu, covar, lb, ub, KKT=1)
                 % free weight i_outs
                 F = [F, i_outs];     % F = Fu{i}
                 B = B(B ~= i_outs);  % B = B\{i}
-                d = d_outs;
+                % only need to update d if doing full KKT check
+                if (KKT == 1) || (KKT == 3); d = d_outs; end
             end
 
             % KKT CHECKS
             % NOTE doesn't check lam=0 soln since it's not (necessarily) a TP.
             if (KKT > 0)
                 printf('Checking KKT conditions...')
-                check = 0;
+                errors = 0;
 
                 if (KKT == 1) || (KKT == 3) 
-                    check += kkt_full(lb, ub, d, ws(:, t), covar, lam_current, mu, gam, debug=true);
+                    errors += ~kkt_full(lb, ub, d, ws(:,t), covar, lam_current, mu, gam, debug=true);
                 end
 
                 if (KKT == 2) || (KKT == 3)
-                    check += kkt_equiv(covar, ws(:,t), lam_current, gam, mu, B, F, debug=true);
+                    errors += ~kkt_equiv(covar, ws(:,t), lam_current, gam, mu, B, F, debug=true);
                 end
 
-                if (KKT == 3 && check == 2) || (KKT ~= 3 && check == 1)
+                if (errors == 0)
                     printf(' passed!\n')
                 else
-                    if (KKT ~= 3) || (check ~= 1)
-                        printf(' checks failed!\')
+                    if (KKT == 3) && (errors == 1) 
+                        printf(' uh oh, only one set of check failed!\n')
                     else
-                        printf(' uh oh, only one check failed!\n')
+                        printf(' checks failed!\n')
                     end
-                    % if DEBUG
+
+                    % TODO implement DEBUG var, but condition on it here
                     w = ws(:,t)'
                     all_w = ws'
                     cond(covar)
-                    exit(1)
-                    % end DEBUG
+                    exit(1)  % super debug?
                 end
             end
 
@@ -478,6 +506,6 @@ function ws = calculate_turningpoints(mu, covar, lb, ub, KKT=1)
             break
         end
     end
-    % only return w2, w3, etc since w0 and w1 coincide TODO work out why
+    % only return w2, w3, etc since w0 and w1 coincide  % TODO work out why
     ws = ws(:, 2:end)';
 end
