@@ -1,4 +1,4 @@
-version = '0.4.0';
+version = '0.4.1';
 printf(['OctCLA v' version '\n'])
 
 % This file octcla.m is part of OctCLA, Copyright (c) 2022 Josh Fogg, released
@@ -388,7 +388,7 @@ function [outs, lam_outs, d] = becomes_free(mu, covar, invcovarF, lb, ub, F, B,
     end
 end
 
-function ws = calculate_turningpoints(mu, covar, lb, ub, KKT=1)
+function ws = calculate_turningpoints(mu, covar, lb, ub, KKT=1, debug=false)
     % CALCULATE_TURNINGPOINTS return portfolio weights at CLA turning points
     %
     % Takes a vector of expected returns (mu), a covariance matrix (covar), a
@@ -400,6 +400,8 @@ function ws = calculate_turningpoints(mu, covar, lb, ub, KKT=1)
     % Takes an optional integer argument (KKT) which indicates whether calculated
     % turning points should be verified through a KKT conditions check and if so
     % by what type of check (0: none, 1: simple, 2: full, 3: both). Default is 1.
+    % Also takes an optional bool argument (debug) which if true gives more verbose
+    % output and halts the program when a KKT check fails. Default value is false.
     %
     % See also, STARTING_SOLUTION, BECOMES_FREE, MOVE_TO_BOUND
 
@@ -477,11 +479,11 @@ function ws = calculate_turningpoints(mu, covar, lb, ub, KKT=1)
                 errors = 0;
 
                 if (KKT == 1) || (KKT == 3) 
-                    errors += ~kkt_full(lb, ub, d, ws(:,t), covar, lam_current, mu, gam, debug=true);
+                    errors += ~kkt_full(lb, ub, d, ws(:,t), covar, lam_current, mu, gam, debug);
                 end
 
                 if (KKT == 2) || (KKT == 3)
-                    errors += ~kkt_equiv(covar, ws(:,t), lam_current, gam, mu, B, F, debug=true);
+                    errors += ~kkt_equiv(covar, ws(:,t), lam_current, gam, mu, B, F, debug);
                 end
 
                 if (errors == 0)
@@ -493,11 +495,12 @@ function ws = calculate_turningpoints(mu, covar, lb, ub, KKT=1)
                         printf(' checks failed!\n')
                     end
 
-                    % TODO implement DEBUG var, but condition on it here
-                    w = ws(:,t)'
-                    all_w = ws'
-                    cond(covar)
-                    exit(1)  % super debug?
+                    if debug
+                        w = ws(:,t)'
+                        all_w = ws'
+                        cond(covar)
+                        exit(1)
+                    end
                 end
             end
 
