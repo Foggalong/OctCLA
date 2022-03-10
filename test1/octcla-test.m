@@ -14,7 +14,9 @@ covar = data(5:end,:);
 
 % calculate turning points using OctCLA functions
 source('../octcla.m')
+tic
 sols = calculate_turningpoints(mu, covar, lb, ub, KKT=3)';
+toc
 
 % write output to file for reference
 csvwrite('output.csv', sols)
