@@ -300,6 +300,7 @@ function [ins, lam_ins, b_ins, d] = move_to_bound(mu, covar, invcovarF, lb, ub, 
         d = NA;
     end
 
+    % check whether found new turning point
     [ins, lam_ins] = argmax(lam, lam_current);
     if isnan(ins)
         b_ins = NA;
@@ -379,7 +380,9 @@ function [outs, lam_outs, d] = becomes_free(mu, covar, invcovarF, lb, ub, F, B,
         lam(i) = (lami_p1-lami_p2)/Ci(j);
     end
 
+    % check whether found new turning point
     [outs, lam_outs] = argmax(lam, lam_current);
+
     % only have d if outs defined and doing full KKT check
     if (outs == NA) || (KKT == 0) || (KKT == 2)  
         d = NA;
