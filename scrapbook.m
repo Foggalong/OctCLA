@@ -3,7 +3,7 @@
 % | AND JUST HERE WHILE I'M WORKING ON MY CRAP, TRYING TO GET IT TO WORK |
 % +----------------------------------------------------------------------+
 
-function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, covarFB, muF, lam_current, tol=1e-10)
+function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, covarFB, muF, lam_current, m2b, tol=1e-10)
     % MULTIPLIER_UPDATE handle the updating of lagrangian multipliers
     % 
     % TODO work out if this is actually needed or can be simplified away
@@ -11,8 +11,12 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
     % equations trying to get to grips with how they would link into each other
     % in code. I'm not even sure it will actually be functional!
     %
+    % The `m2b' argument determines which branch of the algorithm the function
+    % is being called in. If m2b = true, it's in move_to_bound, otherwise it's
+    % in becomes_free. This changes how the b vector is calculated.
+    %
     % See also, ???
-
+    
     % want D and S to be indexes in free assets, not indexes in all the assets
     F_D = subindex(D, F);
     F_S = subindex(S, F);
@@ -73,44 +77,44 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
     % entry i of C gives whether free asset i is moving toward its upper or lower bound 
     C = invcovarF * ([repmat(dGam_dLam, size(S)); repmat(dDel_dLam, size(D))] + muF);
 
-    % lambda update equation is separated into chunk. the first of these chunks
-    % is determined by whether we're considering assets becoming free or moving
-    % to a bound.
+    % lambda update equation is separated into chunks for readability. the first
+    % of these chunks is determined by whether we're considering assets becoming free
+    % or moving to a bound.
 
-    % BEGIN BLOCK
-    % if in moves_to_bound, b(i) determined based on derivative
-    b = zeros(size(w));
-    for i = B
-        if C(i) > 0
-            % asset moving towards its upper bound
-            b(i) = ub(i);
-        elseif C(i) < 0
-            b(i) = lb(i);
-        else  % C(i) == 0
-            % since more than one free variable, C(j) == 0 iff all mu(i) equal
-            continue
+    if m2b:
+        % in move_to_bound, so b(i) determined based on derivative
+        for j = 1:length(F)
+            % need to index outer matrix, as per NOTE A1
+            i = F(j);
+            if C(j) > 0
+                % asset moving towards its upper bound
+                b(i) = ub(i);
+            elseif C(j) < 0
+                b(i) = lb(i);
+            else  % C(j) == 0
+                % since more than one free variable, C(j) == 0 iff all mu(i) equal
+                continue
+            end
+        end
+        % precalculate lam_num_p1
+        if isempty(B)
+            lam_num_p1 = determinant*b;
+        else
+            lam_num_p1 = determinant*(b + invcovarF*covarFB*w(B));
+        end
+    else
+        % in becomes_free, so b(i) = w(i)
+        if isempty(B)
+            lam_num_p1 = determinant*w;
+        else
+            lam_num_p1 = determinant*(w + invcovarF*covarFB*w(B));
         end
     end
-    if isempty(B)
-        lam_num_p1 = determinant*b;
-    else
-        lam_num_p1 = determinant*(b + invcovarF*covarFB*w(B));
-    end
-    % END BLOCK
-
-    % BEGIN BLOCK
-    % if in becomes_free function, b(i) = w(i)
-    if isempty(B)
-        lam_num_p1 = determinant*w;
-    else
-        lam_num_p1 = determinant*(w + invcovarF*covarFB*w(B));
-    end
-    % END BLOCK
 
     lam_num_p2 = [repmat(b*y_p1 - a*x_p1, size(S)); repmat(c*x_p1 - a*y_p1, size(D))];
     lam_den_p1 = [repmat(b*y_p2 - a*x_p2, size(S)); repmat(c*x_p2 - a*y_p2, size(D))];
     lam_den_p2 = invcovarF*(lam_den_p1 + determinant*muF);
-    lam_new = (lam_num_p1 + lam_num_p2)/lam_den_p2;  % Needs to be vectorised
+    lambda = (lam_num_p1 + lam_num_p2)./lam_den_p2;  % TODO Check this vectorisation works
 end
 
 
