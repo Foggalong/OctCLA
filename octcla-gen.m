@@ -117,42 +117,26 @@ function [F, B, w] = starting_solution_gen(mu, lb, ub, S, D, tol=1e-10)
     B = [B, D(D ~= i_free)];
 end
 
-function [ins, lam_ins, b_ins, d] = move_to_bound_gen(mu, covar, invcovarF, lb, ub,
-                                                      F, B, S, D, lam_current, w, KKT)
-   % MOVE_TO_BOUND handle the CLA case where an asset moves to its bound
-    %
-    % TODO write function description
-    %
-    % See also, CALCULATE_TURNINGPOINTS
 
-    % a sole free asset cannot move to bound
-    if length(F) == 1
-        ins = b_ins = d = NA; lam_ins = -inf;
-        return
-    end
-
-    b   = zeros(length(mu), 1);  % b vector
-    lam = zeros(length(mu), 1);  % lambda vector
-
-    muF          = mu(F);
-    invcovarFmuF = invcovarF*muF;
-    covarFB      = covar(F,B);
-end
-
-
-
-
-
-function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, covarFB, muF, lam_current, tol=1e-10)
-    % MULTIPLIER_UPDATE handle the CLA case where an asset becomes free
+function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, covarFB, muF, lam_current, m2b, tol=1e-10)
+    % MULTIPLIER_UPDATE handle the updating of lagrangian multipliers
     % 
-    % TODO work out if this is actually needed or can be simplified away
-    % This was mostly me just working through the full set of multiplier update
-    % equations trying to get to grips with how they would link into each other
-    % in code. I'm not even sure it will actually be functional!
+    % TODO Write a proper function description.
     %
-    % See also, ???
-
+    % NOTE This started mostly me just working through the full set of multiplier
+    % update equations. I underestimated just how complicated they would be to
+    % implement, even with just that one extra constraint, so was trying to get
+    % to grips with how they would link into each other in code. I'm not even sure
+    % it will actually be functional as written but it turned out actually to be
+    % useful/integral to write code which didn't include lots of duplication and/or
+    % inefficiently passing way too many variables around.
+    %
+    % The `m2b' argument determines which branch of the algorithm the function
+    % is being called in. If m2b = true, it's in move_to_bound, otherwise it's
+    % in becomes_free. This changes how the b vector is calculated.
+    %
+    % See also, ???  % TODO lookup what MATLAB standard is when this is empty 
+    
     % want D and S to be indexes in free assets, not indexes in all the assets
     F_D = subindex(D, F);
     F_S = subindex(S, F);
@@ -213,46 +197,100 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
     % entry i of C gives whether free asset i is moving toward its upper or lower bound 
     C = invcovarF * ([repmat(dGam_dLam, size(S)); repmat(dDel_dLam, size(D))] + muF);
 
-    % lambda update equation is separated into chunk. the first of these chunks
-    % is determined by whether we're considering assets becoming free or moving
-    % to a bound.
+    % lambda update equation is separated into chunks for readability. the first
+    % of these chunks is determined by whether we're considering assets becoming free
+    % or moving to a bound.
 
-    % BEGIN BLOCK
-    % if in moves_to_bound, b(i) determined based on derivative
-    b = zeros(size(w));
-    for i = B
-        if C(i) > 0
-            % asset moving towards its upper bound
-            b(i) = ub(i);
-        elseif C(i) < 0
-            b(i) = lb(i);
-        else  % C(i) == 0
-            % since more than one free variable, C(j) == 0 iff all mu(i) equal
-            continue
+    if m2b:
+        % in move_to_bound, so b(i) determined based on derivative
+        for j = 1:length(F)
+            % need to index outer matrix, as per NOTE A1
+            i = F(j);
+            if C(j) > 0
+                % asset moving towards its upper bound
+                b(i) = ub(i);
+            elseif C(j) < 0
+                b(i) = lb(i);
+            else  % C(j) == 0
+                % since more than one free variable, C(j) == 0 iff all mu(i) equal
+                continue
+            end
+        end
+        % precalculate lam_num_p1
+        if isempty(B)
+            lam_num_p1 = determinant*b;
+        else
+            lam_num_p1 = determinant*(b + invcovarF*covarFB*w(B));
+        end
+    else
+        % in becomes_free, so b(i) = w(i)
+        if isempty(B)
+            lam_num_p1 = determinant*w;
+        else
+            lam_num_p1 = determinant*(w + invcovarF*covarFB*w(B));
         end
     end
-    if isempty(B)
-        lam_num_p1 = determinant*b;
-    else
-        lam_num_p1 = determinant*(b + invcovarF*covarFB*w(B));
-    end
-    % END BLOCK
-
-    % BEGIN BLOCK
-    % if in becomes_free function, b(i) = w(i)
-    if isempty(B)
-        lam_num_p1 = determinant*w;
-    else
-        lam_num_p1 = determinant*(w + invcovarF*covarFB*w(B));
-    end
-    % END BLOCK
 
     lam_num_p2 = [repmat(b*y_p1 - a*x_p1, size(S)); repmat(c*x_p1 - a*y_p1, size(D))];
     lam_den_p1 = [repmat(b*y_p2 - a*x_p2, size(S)); repmat(c*x_p2 - a*y_p2, size(D))];
     lam_den_p2 = invcovarF*(lam_den_p1 + determinant*muF);
-    lam_new = (lam_num_p1 + lam_num_p2)/lam_den_p2;
+    lambda = (lam_num_p1 + lam_num_p2)./lam_den_p2;  % TODO Check this vectorisation works
 end
 
+
+function [ins, lam_ins, b_ins, d] = move_to_bound_gen(mu, covar, invcovarF, lb, ub,
+                                                      F, B, S, D, lam_current, w, KKT)
+   % MOVE_TO_BOUND handle the CLA case where an asset moves to its bound
+    %
+    % TODO write function description
+    %
+    % See also, CALCULATE_TURNINGPOINTS
+
+    % a sole free asset cannot move to bound
+    if length(F) == 1
+        ins = b_ins = d = NA; lam_ins = -inf;
+        return
+    end
+
+    % pre-allocate storage vectors
+    b   = zeros(length(mu), 1);  % holds which bounds being moved towards
+    lam = zeros(length(mu), 1);  % holds potential lambda values
+
+    % BUG resolve duplicated variable name (b, bound vector, b linear system value)
+    % probably easier at this point to rename the linear system variables since I've
+    % only used them in a limited set of situations so far.
+
+    muF          = mu(F);
+    invcovarFmuF = invcovarF*muF;
+    covarFB      = covar(F,B);
+
+    % calculate derivative using function
+    [gam, del, C, lam_new] = derivative_update(F, B, S, D, w, invcovarF, covarFB, muF, lam_current, true)
+
+    % TODO check if there's a more efficient way to do this allocation
+    % QUESTION is this actually even needed anymore? 
+    for j = 1:length(F)
+        i = F(j)
+        lam(i) = lam_new(j)
+    end  
+
+    % BUG need to pass b back from update, not passed currently
+    % only need d if running the full KKT check
+    if (KKT == 1) || (KKT == 3)
+        d = b;
+        d(B) = w(B);
+    else
+        d = NA;
+    end
+    
+    % check whether found new turning point
+    [ins, lam_ins] = argmax(lam, lam_current);
+    if isnan(ins)
+        b_ins = NA;
+    else
+        b_ins = b(ins);
+    end
+end
 
 
 
@@ -265,4 +303,4 @@ ub = [0.5; 0.5; 0.5; 0.5];
 S  = [1, 3];
 D  = [2, 4];
 
-starting_solution(mu, lb, ub, S, D);
+starting_solution(mu, lb, ub, S, D)
