@@ -296,7 +296,7 @@ end
 
 % TODO added a B argument which isn't in the original, need to check if it can be removed
 function [outs, lam_outs, d] = becomes_free_gen(mu, covar, invcovarF, lb, ub, F, B,
-                                            lam_current, w, KKT)
+                                                S, D, lam_current, w, KKT)
     % BECOMES_FREE_GEN handle the genetics CLA case where an asset becomes free
     %
     % TODO write function description
@@ -365,8 +365,105 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, KKT=1, debug=false)
     %
     % See also, STARTING_SOLUTION_GEN, BECOMES_FREE_GEN, MOVE_TO_BOUND_GEN
 
-    % TODO actually write this function
-    ws = null;  % placeholder so code runs
+    % calculate starting solution
+    [F, B, ws] = starting_solution_gen(mu, lb, ub, S, D)
+
+    % initial inversion, the only one calculated without shortcuts
+    % TODO this is almost guaranteed to be a 2x2 matrix, should be able to do this better 
+    invcovarF = inv(covar(F,F));
+
+    lam_current = inf;
+    t = 1;  % so current w will be ws(:,t)
+
+    while true
+        % case a where a free asset moves to its bound
+        [i_ins, lam_ins, b_ins, d_ins] = move_to_bound_gen(mu, covar, invcovarF, lb, ub, F, B, S, D, lam_current, w(:,t), KKT)
+        % case b where an asset on its bound becomes free
+        [i_outs, lam_outs, d_outs] = becomes_free_gen(mu, covar, invcovarF, lb, ub, F, B, S, D, lam_current, w, KKT)
+
+        if (i_ins ~= NA || i_outs ~= NA)
+            lam_current = max(lam_ins, lam_outs);
+            % if lam < 0 the risk is increasing again, make lam = 0 the last iteration
+            if lam_current < 0; lam_current = 0; end
+
+            % add an additional column to ws for the new asset weights
+            ws = [ws, zeros(length(mu),1)];
+            ws(B, t+1) = ws(B, t);
+            t = t+1;
+
+            % TODO code for gamma, delta updates
+
+            % TODO code for updating w_F^(t)
+
+            % if lambda = 0 then risk is increasing again, can terminate
+            if lam_current <= 0; break; end
+
+            % update free and bounded asset index sets
+            if (lam_ins > lam_outs)
+                % update the inverse
+                % TODO could this find be replaced?
+                j = find(F==i_ins);  % need index in inverse, not full matrix
+                invcovarF = inverse_shrink(invcovarF, j);
+                % bound weight i_ins
+                F = F(F ~= i_ins);  % F = F\{i}
+                B = [B, i_ins];     % B = Bu{i}
+                ws(i_ins, t) = b;   % w_i_inside^(t) = b  % TODO is this line needed?
+                % only need to update d if doing full KKT check
+                if (KKT == 1) || (KKT == 3); d = d_ins; end
+            else
+                % update the inverse
+                a = covar(F, i_outs);
+                alpha = covar(i_outs, i_outs);
+                invcovarF = inverse_grow(invcovarF, a, alpha);
+                % free weight i_outs
+                F = [F, i_outs];     % F = Fu{i}
+                B = B(B ~= i_outs);  % B = B\{i}
+                % only need to update d if doing full KKT check
+                if (KKT == 1) || (KKT == 3); d = d_outs; end
+            end
+
+            % KKT CHECKS
+            % NOTE doesn't check lam=0 soln since it's not (necessarily) a TP.
+
+            if (KKT > 0)
+                printf('Checking KKT conditions...')
+                errors = 0;
+
+                if (KKT == 1) || (KKT == 3)
+                    % TODO update once associated function is implemented
+                    % errors += ~kkt_full_gen(...);
+                end
+
+                if (KKT == 2) || (KKT == 3)
+                    % TODO update once associated function is implemented
+                    % errors += ~kkt_equiv(...);
+                end
+
+                if (errors == 0)
+                    printf(' passed!\n')
+                else
+                    if (KKT == 3) && (errors == 1) 
+                        printf(' uh oh, only one set of check failed!\n')
+                    else
+                        printf(' checks failed!\n')
+                    end
+
+                    if debug
+                        w = ws(:,t)'
+                        all_w = ws'
+                        cond(covar)
+                        exit(1)
+                    end
+                end
+            end
+
+        else
+            % if i_ins and i_outs are NA then we're done
+            break
+        end
+    end
+    % only return w2, w3, etc since w0 and w1 coincide  % TODO work out why
+    ws = ws(:, 2:end)';
 end
 
 
