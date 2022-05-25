@@ -412,6 +412,7 @@ function ws = calculate_turningpoints(mu, covar, lb, ub, KKT=1, debug=false)
     [F, B, ws] = starting_solution(mu, lb, ub);
 
     % initial inversion, the only one calculated without shortcuts
+    % TODO this is a 1x1 matrix, should be able to just take reciprocal 
     invcovarF = inv(covar(F,F));
 
     lam_current = inf;
