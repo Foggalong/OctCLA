@@ -201,7 +201,7 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
     % of these chunks is determined by whether we're considering assets becoming free
     % or moving to a bound.
 
-    if m2b:
+    if m2b
         % in move_to_bound, so b(i) determined based on derivative
         for j = 1:length(F)
             % need to index outer matrix, as per NOTE A1
@@ -240,11 +240,11 @@ end
 
 function [ins, lam_ins, b_ins, d] = move_to_bound_gen(mu, covar, invcovarF, lb, ub,
                                                       F, B, S, D, lam_current, w, KKT)
-   % MOVE_TO_BOUND handle the CLA case where an asset moves to its bound
+   % MOVE_TO_BOUND_GEN handle the genetics CLA case where an asset moves to its bound
     %
     % TODO write function description
     %
-    % See also, CALCULATE_TURNINGPOINTS
+    % See also, CALCULATE_TURNINGPOINTS_GEN
 
     % a sole free asset cannot move to bound
     if length(F) == 1
@@ -266,6 +266,7 @@ function [ins, lam_ins, b_ins, d] = move_to_bound_gen(mu, covar, invcovarF, lb, 
 
     % calculate derivative using function
     [gam, del, C, lam_new] = derivative_update(F, B, S, D, w, invcovarF, covarFB, muF, lam_current, true)
+    % TODO work out if gamma and delta are actually needed as outputs
 
     % TODO check if there's a more efficient way to do this allocation
     % QUESTION is this actually even needed anymore? 
@@ -293,6 +294,81 @@ function [ins, lam_ins, b_ins, d] = move_to_bound_gen(mu, covar, invcovarF, lb, 
 end
 
 
+% TODO added a B argument which isn't in the original, need to check if it can be removed
+function [outs, lam_outs, d] = becomes_free_gen(mu, covar, invcovarF, lb, ub, F, B,
+                                            lam_current, w, KKT)
+    % BECOMES_FREE_GEN handle the genetics CLA case where an asset becomes free
+    %
+    % TODO write function description
+    %
+    % See also, CALCULATE_TURNINGPOINTS_GEN
+
+    % skip proceedure if all assets are free
+    if (length(F) == length(mu))
+        outs = d = NA; lam_outs = -inf;
+        return
+    end
+
+    lam = zeros(length(mu), 1);  % lambda vector
+    % only need D if running the full KKT check
+    if (KKT == 1) || (KKT == 3)
+        D = zeros(length(mu), length(mu));  % matrix of potential d vectors
+    end
+
+    for i = B
+        % update the inverse
+        a = covar(F, i);  % BUG another duplicated variable
+        alpha = covar(i, i);
+        invcovarFi = inverse_grow(invcovarF, a, alpha);
+        % free weight i
+        Fi = [F, i];     % F = Fu{i}
+        Bi = B(B ~= i);  % B = B\{i}
+        % TODO work out if need similar updates for S and D
+        % additional shortcuts needed just in genetics version
+        covarFiBi = covar(Fi,Bi);
+        muF
+        % need to index outer matrix, as per NOTE A1
+        j = length(Fi);  % Fi[j] = i; i last element in Fi by construction
+
+        % TODO add multiplier update code; below is from finance version
+        % ==============================================================
+        % calculate derivative using function
+        [gam, del, C, lam_new] = derivative_update(Fi, Bi, S, D, w, invcovarFi, covarFiBi, muF, lam_current, false)
+        % TODO work out if gamma and delta are actually needed as outputs
+
+        % if running full KKT check, save d vector
+        if (KKT == 1) || (KKT == 3)
+            for l = 1:length(Fi)
+                k = Fi(l);
+                if Ci(l) > 0; D(k, i) = ub(l); end
+                if Ci(l) < 0; D(k, i) = lb(l); end
+            end
+            D(Bi, i) = w(Bi);  % TODO factor this into a KKT if statement
+        end
+    end
+
+    % check whether found new turning point
+    [outs, lam_outs] = argmax(lam, lam_current);
+
+    % only have d if outs defined and doing full KKT check
+    if (outs == NA) || (KKT == 0) || (KKT == 2)  
+        d = NA;
+    else
+        d = D(:, outs);
+    end
+end
+
+function ws = calculate_turningpoints_gen(mu, covar, lb, ub, KKT=1, debug=false)
+    % CALCULATE_TURNINGPOINTS_GEN return portfolio weights at genetics CLA turning points
+    %
+    % TODO write function description
+    %
+    % See also, STARTING_SOLUTION_GEN, BECOMES_FREE_GEN, MOVE_TO_BOUND_GEN
+
+    % TODO actually write this function
+    ws = null;  % placeholder so code runs
+end
+
 
 % TEST CODE TESTING
 % =================
@@ -303,4 +379,4 @@ ub = [0.5; 0.5; 0.5; 0.5];
 S  = [1, 3];
 D  = [2, 4];
 
-starting_solution(mu, lb, ub, S, D)
+[F, B, w] = starting_solution(mu, lb, ub, S, D)
