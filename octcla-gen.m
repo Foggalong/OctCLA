@@ -118,10 +118,11 @@ function [F, B, w] = starting_solution_gen(mu, lb, ub, S, D, tol=1e-10)
 end
 
 
-function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, covarFB, muF, lam_current, m2b, tol=1e-10)
+function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, covarFB, muF, lam_current, lb, ub, m2b, tol=1e-10)
     % MULTIPLIER_UPDATE handle the updating of lagrangian multipliers
     % 
     % TODO Write a proper function description.
+    % TODO find a way to make ub and lb non-essential
     %
     % NOTE This started mostly me just working through the full set of multiplier
     % update equations. I underestimated just how complicated they would be to
@@ -187,8 +188,9 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
     del = (a*y - c*x)/determinant;
 
     % NOTE calculating gam, del, x, or y is *not* a pre-requisite for C or
-    % lambda. All we need for those are a, b, c, d and {x,y}_p{1,2}. It's not
-    % a massive computational saving, but it's something.
+    % lambda. A small computational saving (literally 12 operations per
+    % update) could be made here the expense of having to pass a, b, c, d
+    % and {x,y}_p{1,2} as outputs.
 
     % derivatives of those updated multipliers with respect to lambda
     dGam_dLam = (b*y_p2 - a*x_p2)/determinant;
@@ -231,18 +233,27 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
         end
     end
 
-    lam_num_p2 = [repmat(b*y_p1 - a*x_p1, size(S)); repmat(c*x_p1 - a*y_p1, size(D))];
-    lam_den_p1 = [repmat(b*y_p2 - a*x_p2, size(S)); repmat(c*x_p2 - a*y_p2, size(D))];
+    lam_num_p2 = [repmat(b*y_p1 - a*x_p1, size(S)), repmat(c*x_p1 - a*y_p1, size(D))]';
+    lam_den_p1 = [repmat(b*y_p2 - a*x_p2, size(S)), repmat(c*x_p2 - a*y_p2, size(D))]';
     lam_den_p2 = invcovarF*(lam_den_p1 + determinant*muF);
     lambda = (lam_num_p1 + lam_num_p2)./lam_den_p2;  % TODO Check this vectorisation works
 end
 
 
-function [ins, lam_ins, b_ins, d] = move_to_bound_gen(mu, covar, invcovarF, lb, ub,
-                                                      F, B, S, D, lam_current, w, KKT)
+function [ins, lam_ins, gam_ins, del_ins, b_ins, d] = move_to_bound_gen(mu, covar, invcovarF, lb, ub, F, B, S, D, lam_current, w, KKT)
    % MOVE_TO_BOUND_GEN handle the genetics CLA case where an asset moves to its bound
     %
-    % TODO write function description
+    % As input, takes a vector (mu) of expected returns, a covariance matrix (covar),
+    % the inverse of that covar when restricted to free assets (invcovarF), a vector
+    % of lower bounds on assest weights (lb), a vector of upper bounds on asset
+    % weights (ub), index sets for the free (F) and bounded (B) asset, index sets for
+    % the sires (S) and dams (D) the current, lambda (lam_current), the current weight
+    % vector (w), and the type of KKT check being carried out (KKT).
+    %
+    % As output, returns the i (ins), lambda (lam_ins), gamma (gam_ins), delta (del_ins),
+    % and bound (b_ins) of the asset which would move to its bound. If running a full
+    % KKT check, also returns the grad vector (d) which indicates which bounds each
+    % asset is moving towards.
     %
     % See also, CALCULATE_TURNINGPOINTS_GEN
 
@@ -264,9 +275,8 @@ function [ins, lam_ins, b_ins, d] = move_to_bound_gen(mu, covar, invcovarF, lb, 
     invcovarFmuF = invcovarF*muF;
     covarFB      = covar(F,B);
 
-    % calculate derivative using function
-    [gam, del, C, lam_new] = derivative_update(F, B, S, D, w, invcovarF, covarFB, muF, lam_current, true)
-    % TODO work out if gamma and delta are actually needed as outputs
+    % calculate derivative and multiplier updates using function
+    [gam_ins, del_ins, C, lam_new] = multiplier_update(F, B, S, D, w, invcovarF, covarFB, muF, lam_current, lb, ub, true)
 
     % TODO check if there's a more efficient way to do this allocation
     % QUESTION is this actually even needed anymore? 
@@ -286,6 +296,7 @@ function [ins, lam_ins, b_ins, d] = move_to_bound_gen(mu, covar, invcovarF, lb, 
     
     % check whether found new turning point
     [ins, lam_ins] = argmax(lam, lam_current);
+
     if isnan(ins)
         b_ins = NA;
     else
@@ -295,11 +306,20 @@ end
 
 
 % TODO added a B argument which isn't in the original, need to check if it can be removed
-function [outs, lam_outs, d] = becomes_free_gen(mu, covar, invcovarF, lb, ub, F, B,
-                                                S, D, lam_current, w, KKT)
+function [outs, lam_outs, gam_outs, del_outs d] = becomes_free_gen(mu, covar, invcovarF, lb, ub, F, B, S, D, lam_current, w, KKT)
     % BECOMES_FREE_GEN handle the genetics CLA case where an asset becomes free
     %
-    % TODO write function description
+    % As input, takes a vector (mu) of expected returns, a covariance matrix (covar),
+    % the inverse of that covar when restricted to free assets (invcovarF), a vector
+    % of lower bounds on assest weights (lb), a vector of upper bounds on asset
+    % weights (ub), index sets for the free (F) and bounded (B) asset, index sets for
+    % the sires (S) and dams (D), the current lambda (lam_current), the current weight
+    % vector (w), and the type of KKT check being carried out (KKT).
+    %
+    % As output, returns the i (outs), lambda (lam_outs), gamma (gam_outs), and delta
+    % (del_outs) of the asset which moves away from its bound (i.e. which becomes free).
+    % If running a full KKT check, also returns the grad vector (d) which indicates
+    % which bounds each asset is moving towards.
     %
     % See also, CALCULATE_TURNINGPOINTS_GEN
 
@@ -310,6 +330,9 @@ function [outs, lam_outs, d] = becomes_free_gen(mu, covar, invcovarF, lb, ub, F,
     end
 
     lam = zeros(length(mu), 1);  % lambda vector
+    gam = zeros(length(mu), 1);  % gamma vector
+    del = zeros(length(mu), 1);  % delta vector
+
     % only need D if running the full KKT check
     if (KKT == 1) || (KKT == 3)
         D = zeros(length(mu), length(mu));  % matrix of potential d vectors
@@ -317,24 +340,22 @@ function [outs, lam_outs, d] = becomes_free_gen(mu, covar, invcovarF, lb, ub, F,
 
     for i = B
         % update the inverse
-        a = covar(F, i);  % BUG another duplicated variable
+        a = covar(F, i);  % BUG another duplicated variable name
         alpha = covar(i, i);
         invcovarFi = inverse_grow(invcovarF, a, alpha);
         % free weight i
         Fi = [F, i];     % F = Fu{i}
         Bi = B(B ~= i);  % B = B\{i}
-        % TODO work out if need similar updates for S and D
+        % don't need to update S/D, constant between iterations
+
         % additional shortcuts needed just in genetics version
         covarFiBi = covar(Fi,Bi);
         muF
         % need to index outer matrix, as per NOTE A1
         j = length(Fi);  % Fi[j] = i; i last element in Fi by construction
 
-        % TODO add multiplier update code; below is from finance version
-        % ==============================================================
-        % calculate derivative using function
-        [gam, del, C, lam_new] = derivative_update(Fi, Bi, S, D, w, invcovarFi, covarFiBi, muF, lam_current, false)
-        % TODO work out if gamma and delta are actually needed as outputs
+        % calculate derivative and multiplier updates using function
+        [del(i), gam(i), C, lam(i)] = multiplier_update(Fi, Bi, S, D, w, invcovarFi, covarFiBi, muF, lam_current, lb, ub, false)
 
         % if running full KKT check, save d vector
         if (KKT == 1) || (KKT == 3)
@@ -350,6 +371,14 @@ function [outs, lam_outs, d] = becomes_free_gen(mu, covar, invcovarF, lb, ub, F,
     % check whether found new turning point
     [outs, lam_outs] = argmax(lam, lam_current);
 
+    % need to check rather than assume or will get an index error
+    if (outs ~= NA)
+        % select correponding gamma and delta multipliers
+        [gam_outs, del_outs] = [gam(outs), del(outs)];
+    else
+        [gam_outs, del_outs] = NA;
+    end
+
     % only have d if outs defined and doing full KKT check
     if (outs == NA) || (KKT == 0) || (KKT == 2)  
         d = NA;
@@ -358,7 +387,7 @@ function [outs, lam_outs, d] = becomes_free_gen(mu, covar, invcovarF, lb, ub, F,
     end
 end
 
-function ws = calculate_turningpoints_gen(mu, covar, lb, ub, KKT=1, debug=false)
+function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT=1, debug=false)
     % CALCULATE_TURNINGPOINTS_GEN return portfolio weights at genetics CLA turning points
     %
     % TODO write function description
@@ -366,7 +395,7 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, KKT=1, debug=false)
     % See also, STARTING_SOLUTION_GEN, BECOMES_FREE_GEN, MOVE_TO_BOUND_GEN
 
     % calculate starting solution
-    [F, B, ws] = starting_solution_gen(mu, lb, ub, S, D)
+    [F, B, ws] = starting_solution_gen(mu, lb, ub, S, D);
 
     % initial inversion, the only one calculated without shortcuts
     % TODO this is almost guaranteed to be a 2x2 matrix, should be able to do this better 
@@ -377,23 +406,41 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, KKT=1, debug=false)
 
     while true
         % case a where a free asset moves to its bound
-        [i_ins, lam_ins, b_ins, d_ins] = move_to_bound_gen(mu, covar, invcovarF, lb, ub, F, B, S, D, lam_current, w(:,t), KKT)
+        [i_ins, lam_ins, gam_ins, del_ins, b_ins, d_ins] = move_to_bound_gen(mu, covar, invcovarF, lb, ub, F, B, S, D, lam_current, ws(:,t), KKT)
         % case b where an asset on its bound becomes free
-        [i_outs, lam_outs, d_outs] = becomes_free_gen(mu, covar, invcovarF, lb, ub, F, B, S, D, lam_current, w, KKT)
+        [i_outs, lam_outs, gam_outs, del_outs, d_outs] = becomes_free_gen(mu, covar, invcovarF, lb, ub, F, B, S, D, lam_current, ws(:,t), KKT)
 
         if (i_ins ~= NA || i_outs ~= NA)
             lam_current = max(lam_ins, lam_outs);
+
             % if lam < 0 the risk is increasing again, make lam = 0 the last iteration
-            if lam_current < 0; lam_current = 0; end
+            if lam_current < 0;
+                lam_current = 0;
+                % since value of lambda change need to recalculate gamma and delta
+                [gam, del, C_null, lam_null] = multiplier_update(F, B, S, D, w, invcovarF, covar(F,B), mu(F), lam_current, lb, ub, false)
+                % NOTE don't actually need C or lambda; which makes choice of m2b redudent
+            else
+                % need to know which lambda won
+                if lam_current == lam_ins  % can do without tol comparison since come from max
+                    gam = gam_ins;
+                    del = del_ins;
+                else
+                    gam = gam_outs;
+                    del = del_outs;
+                end
+            end
 
             % add an additional column to ws for the new asset weights
             ws = [ws, zeros(length(mu),1)];
             ws(B, t+1) = ws(B, t);
             t = t+1;
 
-            % TODO code for gamma, delta updates
-
-            % TODO code for updating w_F^(t)
+            % update w_F^(t)
+            ws(F,t) = lam_current*(invcovarF*mu(F)) + [repmat(gam*sum(invcovarF(S,S), 2), size(S)); repmat(del*sum(invcovarF(D,D), 2), size(D))];
+            % have an extra term unless b is empty
+            if ~isempty(B)
+                ws(F,t) = ws(F,t) - invcovarF*(covar(F,B)*ws(B,t));
+            end
 
             % if lambda = 0 then risk is increasing again, can terminate
             if lam_current <= 0; break; end
@@ -470,10 +517,17 @@ end
 % TEST CODE TESTING
 % =================
 
-mu = [0.2; 0.8; 0.4; 0.3];
-lb = [0.2; 0.2; 0.2; 0.2];
-ub = [0.5; 0.5; 0.5; 0.5];
 S  = [1, 3];
 D  = [2, 4];
+mu = [0.2; 0.8; 0.4; 0.3];
+lb = [0.1; 0.1; 0.1; 0.1];
+ub = [0.5; 0.5; 0.5; 0.5];
+covar = [
+    1, 0.5, 0.75, 0.875;
+    0.5, 1, 0.75, 0.625;
+    0.75, 0.75, 1.25, 1;
+    0.875, 0.625, 1, 1.375
+];
 
-[F, B, w] = starting_solution(mu, lb, ub, S, D)
+
+ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D)
