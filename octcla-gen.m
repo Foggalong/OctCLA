@@ -143,14 +143,14 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
     F_S = subindex(S, F);
 
     % matrix entries on the LHS of the multipler linear system
-    a = sum(sum(invcovarF(F_D,F_S)));
-    b = sum(sum(invcovarF(F_D,F_D)));
-    c = sum(sum(invcovarF(F_S,F_S)));
+    a = sum(sum(invcovarF(F_D,F_S)))
+    b = sum(sum(invcovarF(F_D,F_D)))
+    c = sum(sum(invcovarF(F_S,F_S)))
     % d = a, so doesn't need repeating
 
     % determinant of the multiplier linear system
     determinant = a**2 - b*c;
-    % TODO work out when this occurs; could be impossible in well formed problems
+    % BUG work out when this occurs; could be impossible in well formed problems
     if (abs(determinant) < tol)
         % TODO work out how to handle situations
         printf("ERROR! Linear system has no solutions")
@@ -204,15 +204,17 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
     % or moving to a bound.
 
     if m2b
+        bound = zeros(length(w), 1);  % b vector
+
         % in move_to_bound, so b(i) determined based on derivative
         for j = 1:length(F)
             % need to index outer matrix, as per NOTE A1
             i = F(j);
             if C(j) > 0
                 % asset moving towards its upper bound
-                b(i) = ub(i);
+                bound(i) = ub(i);
             elseif C(j) < 0
-                b(i) = lb(i);
+                bound(i) = lb(i);
             else  % C(j) == 0
                 % since more than one free variable, C(j) == 0 iff all mu(i) equal
                 continue
@@ -220,9 +222,9 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
         end
         % precalculate lam_num_p1
         if isempty(B)
-            lam_num_p1 = determinant*b;
+            lam_num_p1 = determinant*bound(F);
         else
-            lam_num_p1 = determinant*(b + invcovarF*covarFB*w(B));
+            lam_num_p1 = determinant*(bound(F) + invcovarF*covarFB*w(B));
         end
     else
         % in becomes_free, so b(i) = w(i)
@@ -233,8 +235,9 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
         end
     end
 
-    lam_num_p2 = [repmat(b*y_p1 - a*x_p1, size(S)), repmat(c*x_p1 - a*y_p1, size(D))]';
-    lam_den_p1 = [repmat(b*y_p2 - a*x_p2, size(S)), repmat(c*x_p2 - a*y_p2, size(D))]';
+    lam_num_p2 = [repmat(b*y_p1 - a*x_p1, size(F_S)), repmat(c*x_p1 - a*y_p1, size(F_D))]';
+    lam_den_p1 = [repmat(b*y_p2 - a*x_p2, size(F_S)), repmat(c*x_p2 - a*y_p2, size(F_D))]';
+
     lam_den_p2 = invcovarF*(lam_den_p1 + determinant*muF);
     lambda = (lam_num_p1 + lam_num_p2)./lam_den_p2;  % TODO Check this vectorisation works
 end
@@ -276,13 +279,13 @@ function [ins, lam_ins, gam_ins, del_ins, b_ins, d] = move_to_bound_gen(mu, cova
     covarFB      = covar(F,B);
 
     % calculate derivative and multiplier updates using function
-    [gam_ins, del_ins, C, lam_new] = multiplier_update(F, B, S, D, w, invcovarF, covarFB, muF, lam_current, lb, ub, true)
+    [gam_ins, del_ins, C, lam_new] = multiplier_update(F, B, S, D, w, invcovarF, covarFB, muF, lam_current, lb, ub, true);
 
     % TODO check if there's a more efficient way to do this allocation
     % QUESTION is this actually even needed anymore? 
     for j = 1:length(F)
-        i = F(j)
-        lam(i) = lam_new(j)
+        i = F(j);
+        lam(i) = lam_new(j);
     end  
 
     % BUG need to pass b back from update, not passed currently
@@ -306,7 +309,7 @@ end
 
 
 % TODO added a B argument which isn't in the original, need to check if it can be removed
-function [outs, lam_outs, gam_outs, del_outs d] = becomes_free_gen(mu, covar, invcovarF, lb, ub, F, B, S, D, lam_current, w, KKT)
+function [outs, lam_outs, gam_outs, del_outs d] = becomes_free_gen(mu, covar, invcovarF, muF, lb, ub, F, B, S, D, lam_current, w, KKT)
     % BECOMES_FREE_GEN handle the genetics CLA case where an asset becomes free
     %
     % As input, takes a vector (mu) of expected returns, a covariance matrix (covar),
@@ -350,12 +353,12 @@ function [outs, lam_outs, gam_outs, del_outs d] = becomes_free_gen(mu, covar, in
 
         % additional shortcuts needed just in genetics version
         covarFiBi = covar(Fi,Bi);
-        muF
+
         % need to index outer matrix, as per NOTE A1
         j = length(Fi);  % Fi[j] = i; i last element in Fi by construction
 
         % calculate derivative and multiplier updates using function
-        [del(i), gam(i), C, lam(i)] = multiplier_update(Fi, Bi, S, D, w, invcovarFi, covarFiBi, muF, lam_current, lb, ub, false)
+        [del(i), gam(i), C, lam(i)] = multiplier_update(Fi, Bi, S, D, w, invcovarFi, covarFiBi, muF, lam_current, lb, ub, false);
 
         % if running full KKT check, save d vector
         if (KKT == 1) || (KKT == 3)
@@ -405,10 +408,12 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT=1, debug=
     t = 1;  % so current w will be ws(:,t)
 
     while true
+        lam_current
+
         % case a where a free asset moves to its bound
-        [i_ins, lam_ins, gam_ins, del_ins, b_ins, d_ins] = move_to_bound_gen(mu, covar, invcovarF, lb, ub, F, B, S, D, lam_current, ws(:,t), KKT)
+        [i_ins, lam_ins, gam_ins, del_ins, b_ins, d_ins] = move_to_bound_gen(mu, covar, invcovarF, lb, ub, F, B, S, D, lam_current, ws(:,t), KKT);
         % case b where an asset on its bound becomes free
-        [i_outs, lam_outs, gam_outs, del_outs, d_outs] = becomes_free_gen(mu, covar, invcovarF, lb, ub, F, B, S, D, lam_current, ws(:,t), KKT)
+        [i_outs, lam_outs, gam_outs, del_outs, d_outs] = becomes_free_gen(mu, covar, invcovarF, mu(F), lb, ub, F, B, S, D, lam_current, ws(:,t), KKT);
 
         if (i_ins ~= NA || i_outs ~= NA)
             lam_current = max(lam_ins, lam_outs);
@@ -417,7 +422,7 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT=1, debug=
             if lam_current < 0;
                 lam_current = 0;
                 % since value of lambda change need to recalculate gamma and delta
-                [gam, del, C_null, lam_null] = multiplier_update(F, B, S, D, w, invcovarF, covar(F,B), mu(F), lam_current, lb, ub, false)
+                [gam, del, C_null, lam_null] = multiplier_update(F, B, S, D, w, invcovarF, covar(F,B), mu(F), lam_current, lb, ub, false);
                 % NOTE don't actually need C or lambda; which makes choice of m2b redudent
             else
                 % need to know which lambda won
@@ -503,7 +508,6 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT=1, debug=
                     end
                 end
             end
-
         else
             % if i_ins and i_outs are NA then we're done
             break
