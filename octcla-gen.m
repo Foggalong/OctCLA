@@ -260,8 +260,10 @@ function [ins, lam_ins, gam_ins, del_ins, b_ins, d] = move_to_bound_gen(mu, cova
     %
     % See also, CALCULATE_TURNINGPOINTS_GEN
 
-    % a sole free asset cannot move to bound
-    if length(F) == 1
+    % a sole free sire and sole free dam cannot move to bound
+    F_D = subindex(D, F);
+    F_S = subindex(S, F);
+    if (length(F_D) == 1) && (length(F_S) == 1)
         ins = b_ins = d = NA; lam_ins = -inf;
         return
     end
@@ -301,8 +303,16 @@ function [ins, lam_ins, gam_ins, del_ins, b_ins, d] = move_to_bound_gen(mu, cova
     [ins, lam_ins] = argmax(lam, lam_current);
 
     if isnan(ins)
+        % other variables set to NA/inf by argmax
         b_ins = NA;
+    elseif ((length(F_D) == 1) && (ismember(ins, D)))
+        % can't move sole free dam to bound
+        ins = b_ins = d = NA; lam_ins = -inf;
+    elseif (length(F_S) == 1) && (ismember(ins, S))
+        % can't move sole free dam to bound
+        ins = b_ins = d = NA; lam_ins = -inf;
     else
+        % found a turning point, return b
         b_ins = b(ins);
     end
 end
@@ -408,8 +418,6 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT=1, debug=
     t = 1;  % so current w will be ws(:,t)
 
     while true
-        lam_current
-
         % case a where a free asset moves to its bound
         [i_ins, lam_ins, gam_ins, del_ins, b_ins, d_ins] = move_to_bound_gen(mu, covar, invcovarF, lb, ub, F, B, S, D, lam_current, ws(:,t), KKT);
         % case b where an asset on its bound becomes free
