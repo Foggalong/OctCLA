@@ -3,6 +3,19 @@
 % | AND JUST HERE WHILE I'M WORKING ON MY CRAP, TRYING TO GET IT TO WORK |
 % +----------------------------------------------------------------------+
 
+% possibly useful for debugging later
+S  = [1, 3];
+D  = [2, 4];
+mu = [0.2; 0.8; 0.4; 0.3];
+lb = [0.1; 0.1; 0.1; 0.1];
+ub = [0.5; 0.5; 0.5; 0.5];
+covar = [
+    1, 0.5, 0.75, 0.875;
+    0.5, 1, 0.75, 0.625;
+    0.75, 0.75, 1.25, 1;
+    0.875, 0.625, 1, 1.375
+];
+
 function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, covarFB, muF, lam_current, m2b, tol=1e-10)
     % MULTIPLIER_UPDATE handle the updating of lagrangian multipliers
     % 

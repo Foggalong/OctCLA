@@ -293,6 +293,8 @@ function [ins, lam_ins, gam_ins, del_ins, b_ins, d] = move_to_bound_gen(mu, cova
     % pre-allocate storage vectors
     b   = zeros(length(mu), 1);  % holds which bounds being moved towards
     lam = zeros(length(mu), 1);  % holds potential lambda values
+    gam = zeros(length(mu), 1);  % gamma vector
+    del = zeros(length(mu), 1);  % delta vector
 
     % BUG resolve duplicated variable name (b, bound vector, b linear system value)
     % probably easier at this point to rename the linear system variables since I've
@@ -303,13 +305,17 @@ function [ins, lam_ins, gam_ins, del_ins, b_ins, d] = move_to_bound_gen(mu, cova
     covarFB      = covar(F,B);
 
     % calculate derivative and multiplier updates using function
-    [gam_ins, del_ins, C, lam_new] = multiplier_update(F, B, S, D, w, invcovarF, covarFB, muF, lam_current, lb, ub, true);
+    % [gam_ins, del_ins, C, lam_new] = multiplier_update(F, B, S, D, w, invcovarF, covarFB, muF, lam_current, lb, ub, true);
+    % trying to tread gamma and delta from here as vectors
+    [gam_vec, del_vec, C, lam_vec] = multiplier_update(F, B, S, D, w, invcovarF, covarFB, muF, lam_current, lb, ub, true);
 
     % TODO check if there's a more efficient way to do this allocation
     % QUESTION is this actually even needed anymore? 
     for j = 1:length(F)
         i = F(j);
-        lam(i) = lam_new(j);
+        lam(i) = lam_vec(j);
+        del(i) = del_vec(j);
+        gam(i) = gam_vec(j);
     end  
 
     % BUG need to pass b back from update, not passed currently
@@ -326,16 +332,18 @@ function [ins, lam_ins, gam_ins, del_ins, b_ins, d] = move_to_bound_gen(mu, cova
 
     if isnan(ins)
         % other variables set to NA/inf by argmax
-        b_ins = NA;
+        b_ins = gam_ins = del_ins = NA;
     elseif ((length(F_D) == 1) && (ismember(ins, D)))
         % can't move sole free dam to bound
-        ins = b_ins = d = NA; lam_ins = -inf;
+        ins = b_ins = gam_ins = del_ins = d = NA; lam_ins = -inf;
     elseif (length(F_S) == 1) && (ismember(ins, S))
         % can't move sole free dam to bound
-        ins = b_ins = d = NA; lam_ins = -inf;
+        ins = b_ins = gam_ins = del_ins = d = NA; lam_ins = -inf;
     else
         % found a turning point, return b
         b_ins = b(ins);
+        gam_ins = gam(ins);
+        del_ins = del(ins);
     end
 end
 
@@ -446,7 +454,7 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT=1, debug=
         lam_current
         % case a where a free asset moves to its bound
         % DEBUG - uncomment once done 
-        [i_ins, lam_ins, gam_ins, del_ins, b_ins, d_ins] = move_to_bound_gen(mu, covar, invcovarF, lb, ub, F, B, S, D, lam_current, ws(:,t), KKT)
+        [i_ins, lam_ins, gam_ins, del_ins, b, d_ins] = move_to_bound_gen(mu, covar, invcovarF, lb, ub, F, B, S, D, lam_current, ws(:,t), KKT)
         % case b where an asset on its bound becomes free
         [i_outs, lam_outs, gam_outs, del_outs, d_outs] = becomes_free_gen(mu, covar, invcovarF, mu(F), lb, ub, F, B, S, D, lam_current, ws(:,t), KKT)
 
@@ -456,7 +464,6 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT=1, debug=
             % if lam < 0 the risk is increasing again, make lam = 0 the last iteration
             if lam_current < 0;
                 lam_current = 0;
-
                 % since value of lambda change need to recalculate gamma and delta
                 [gam, del, C_null, lam_null] = multiplier_update(F, B, S, D, ws(F,t), invcovarF, covar(F,B), mu(F), lam_current, lb, ub, false);
                 % NOTE don't actually need C or lambda; which makes choice of m2b redudent
@@ -480,9 +487,8 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT=1, debug=
             F_D = subindex(D, F);
             F_S = subindex(S, F);
             % gam
-            % gam*sum(invcovarF(F_S,F_S), 2)
-            % del*sum(invcovarF(F_D,F_D), 2)
             % ws(F,t) = lam_current*(invcovarF*mu(F)) + [repmat(gam*sum(invcovarF(F_S,F_S), 2), size(F_S)), repmat(del*sum(invcovarF(F_D,F_D), 2), size(F_D))]';  % BUG this this was incorrect
+            lam_current*(invcovarF*mu(F)) + [gam*sum(invcovarF(F_S,F_S), 2)', del*sum(invcovarF(F_D,F_D), 2)']'
             ws(F,t) = lam_current*(invcovarF*mu(F)) + [gam*sum(invcovarF(F_S,F_S), 2)', del*sum(invcovarF(F_D,F_D), 2)']'
             % have an extra term unless b is empty
             if ~isempty(B)
@@ -501,7 +507,7 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT=1, debug=
                 % bound weight i_ins
                 F = F(F ~= i_ins);  % F = F\{i}
                 B = [B, i_ins];     % B = Bu{i}
-                ws(i_ins, t) = b;   % w_i_inside^(t) = b  % TODO is this line needed?
+                % ws(i_ins, t) = b;   % w_i_inside^(t) = b  % TODO is this line needed?
                 % only need to update d if doing full KKT check
                 if (KKT == 1) || (KKT == 3); d = d_ins; end
             else
@@ -564,17 +570,20 @@ end
 % TEST CODE TESTING
 % =================
 
-S  = [1, 3];
-D  = [2, 4];
-mu = [0.2; 0.8; 0.4; 0.3];
-lb = [0.1; 0.1; 0.1; 0.1];
-ub = [0.5; 0.5; 0.5; 0.5];
+S  = [1];
+D  = [2,3];
+mu = [1; 5; 2];
+lb = [0.0; 0.0; 0.0];
+ub = [1.0; 1.0; 1.0];
 covar = [
-    1, 0.5, 0.75, 0.875;
-    0.5, 1, 0.75, 0.625;
-    0.75, 0.75, 1.25, 1;
-    0.875, 0.625, 1, 1.375
+    1, 0, 0;
+    0, 5, 0;
+    0, 0, 3;
 ];
 
+% This has turning points
+% ws =
+%    0.50000   0.50000   0.00000
+%    0.50000   0.18750   0.31250
 
 ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D)'
