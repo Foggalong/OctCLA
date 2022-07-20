@@ -143,9 +143,9 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
     F_S = subindex(S, F);
 
     % matrix entries on the LHS of the multipler linear system
-    a = sum(sum(invcovarF(F_D,F_S)))
-    b = sum(sum(invcovarF(F_D,F_D)))
-    c = sum(sum(invcovarF(F_S,F_S)))
+    a = sum(sum(invcovarF(F_D,F_S)));
+    b = sum(sum(invcovarF(F_D,F_D)));
+    c = sum(sum(invcovarF(F_S,F_S)));
     % d = a, so doesn't need repeating
 
     % determinant of the multiplier linear system
@@ -162,6 +162,7 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
     eF_SinvcovarF_SD = sum(invcovarF(F_S, F_D), 1);
     eF_SinvcovarF_SS = sum(invcovarF(F_S, F_S), 1);
 
+    % TODO refactor to involve code duplication
     % components of x & y are reused elsewhere so split up
     if isempty(B)
         % if B empty we get massive cancellations
@@ -169,35 +170,44 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
         y_p1 = 0.5;
     else
         % for x & y also need sub-indexed wB
-        wB_S = w(B)(subindex(S, B));
-        wB_D = w(B)(subindex(D, B));
+        B_D = subindex(D, B);
+        B_S = subindex(S, B);
+        wB_S = w(B)(B_S);
+        wB_D = w(B)(B_D);
         % first part of x and y when B non-empty
-        x_p1 = 0.5 - sum(wB_D, 1) + eF_DinvcovarF_DD*(covarFB(F_D, F_S)*wB_S) + eF_DinvcovarF_DD*(covarFB(F_D, F_D)*wB_D);
-        y_p1 = 0.5 - sum(wB_S, 1) + eF_SinvcovarF_SS*(covarFB(F_S, F_S)*wB_S) + eF_SinvcovarF_SS*(covarFB(F_S, F_D)*wB_D);
+        if isempty(B_D)
+            % cancellations if no bounded dams
+            x_p1 = 0.5 + eF_DinvcovarF_DD*(covarFB(F_D, B_S)*wB_S);
+            y_p1 = 0.5 - sum(wB_S, 1) + eF_SinvcovarF_SS*(covarFB(F_S, B_S)*wB_S);
+        elseif isempty(B_S)
+            % cancellations if no bounded sires
+            x_p1 = 0.5 - sum(wB_D, 1) + eF_DinvcovarF_DD*(covarFB(F_D, B_D)*wB_D);
+            y_p1 = 0.5 + eF_SinvcovarF_SS*(covarFB(F_S, B_D)*wB_D);
+        else
+            x_p1 = 0.5 - sum(wB_D, 1) + eF_DinvcovarF_DD*(covarFB(F_D, B_S)*wB_S) + eF_DinvcovarF_DD*(covarFB(F_D, B_D)*wB_D);
+            y_p1 = 0.5 - sum(wB_S, 1) + eF_SinvcovarF_SS*(covarFB(F_S, B_S)*wB_S) + eF_SinvcovarF_SS*(covarFB(F_S, B_D)*wB_D);
+        end
     end
 
     x_p2 = eF_DinvcovarF_DS*muF(F_S) + eF_DinvcovarF_DD*muF(F_D);
     y_p2 = eF_SinvcovarF_SS*muF(F_S) + eF_SinvcovarF_SD*muF(F_D);
 
-    % matrix entries on the RHS of the multipler linear system
-    x = x_p1 - lam_current*x_p2;
-    y = y_p1 - lam_current*y_p2;
+    % final multiplier update is much simpler
+    if (lam_current == 0)
+        % already know determ
+        gam = (a*x_p1 - b*y_p1)/determinant;
+        del = (a*y_p1 - c*x_p1)/determinant;
+        lambda = 0;
+        C = NA;  % not needed
+        return
+    end
 
-    % calculate solutions of linear system directly; verified det != 0 already.
-    gam = (a*x - b*y)/determinant;
-    del = (a*y - c*x)/determinant;
-
-    % NOTE calculating gam, del, x, or y is *not* a pre-requisite for C or
-    % lambda. A small computational saving (literally 12 operations per
-    % update) could be made here the expense of having to pass a, b, c, d
-    % and {x,y}_p{1,2} as outputs.
-
-    % derivatives of those updated multipliers with respect to lambda
+    % derivatives of previous multipliers with respect to lambda
     dGam_dLam = (b*y_p2 - a*x_p2)/determinant;
     dDel_dLam = (c*x_p2 - a*y_p2)/determinant;
 
-    % entry i of C gives whether free asset i is moving toward its upper or lower bound 
-    C = invcovarF * ([repmat(dGam_dLam, size(S)); repmat(dDel_dLam, size(D))] + muF);
+    % entry i of C gives whether free asset i is moving toward its upper or lower bound
+    C = invcovarF * ([repmat(dGam_dLam, size(F_S)), repmat(dDel_dLam, size(F_D))] + muF);
 
     % lambda update equation is separated into chunks for readability. the first
     % of these chunks is determined by whether we're considering assets becoming free
@@ -229,9 +239,9 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
     else
         % in becomes_free, so b(i) = w(i)
         if isempty(B)
-            lam_num_p1 = determinant*w;
+            lam_num_p1 = determinant*w(F);
         else
-            lam_num_p1 = determinant*(w + invcovarF*covarFB*w(B));
+            lam_num_p1 = determinant*(w(F) + invcovarF*covarFB*w(B));
         end
     end
 
@@ -240,6 +250,18 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
 
     lam_den_p2 = invcovarF*(lam_den_p1 + determinant*muF);
     lambda = (lam_num_p1 + lam_num_p2)./lam_den_p2;  % TODO Check this vectorisation works
+
+    % matrix entries on the RHS of the multipler linear system
+    x = x_p1 - lambda*x_p2;
+    y = y_p1 - lambda*y_p2;
+
+    % update multipliers by direct calculateion of linear system solutions
+    gam = (a*x - b*y)/determinant;
+    del = (a*y - c*x)/determinant;
+
+    % NOTE addityional x, y, gam, and del calculations are being done here
+    % than necessary (because lambda is a vector and we only choose one).
+    % Would be worth checking if we can make this better
 end
 
 
@@ -264,7 +286,7 @@ function [ins, lam_ins, gam_ins, del_ins, b_ins, d] = move_to_bound_gen(mu, cova
     F_D = subindex(D, F);
     F_S = subindex(S, F);
     if (length(F_D) == 1) && (length(F_S) == 1)
-        ins = b_ins = d = NA; lam_ins = -inf;
+        ins = b_ins = gam_ins = del_ins = d = NA; lam_ins = -inf;
         return
     end
 
@@ -338,7 +360,7 @@ function [outs, lam_outs, gam_outs, del_outs d] = becomes_free_gen(mu, covar, in
 
     % skip proceedure if all assets are free
     if (length(F) == length(mu))
-        outs = d = NA; lam_outs = -inf;
+        outs = gam_outs = del_outs = d = NA; lam_outs = -inf;
         return
     end
 
@@ -348,7 +370,7 @@ function [outs, lam_outs, gam_outs, del_outs d] = becomes_free_gen(mu, covar, in
 
     % only need D if running the full KKT check
     if (KKT == 1) || (KKT == 3)
-        D = zeros(length(mu), length(mu));  % matrix of potential d vectors
+        possible_d = zeros(length(mu), length(mu));  % matrix of potential d vectors
     end
 
     for i = B
@@ -368,16 +390,18 @@ function [outs, lam_outs, gam_outs, del_outs d] = becomes_free_gen(mu, covar, in
         j = length(Fi);  % Fi[j] = i; i last element in Fi by construction
 
         % calculate derivative and multiplier updates using function
-        [del(i), gam(i), C, lam(i)] = multiplier_update(Fi, Bi, S, D, w, invcovarFi, covarFiBi, muF, lam_current, lb, ub, false);
-
+        [del_vec, gam_vec, Ci, lam_vec] = multiplier_update(Fi, Bi, S, D, w, invcovarFi, covarFiBi, mu(Fi), lam_current, lb, ub, false);
+        lam(i) = lam_vec(j);
+        del(i) = del_vec(j);
+        gam(i) = gam_vec(j);
         % if running full KKT check, save d vector
         if (KKT == 1) || (KKT == 3)
             for l = 1:length(Fi)
                 k = Fi(l);
-                if Ci(l) > 0; D(k, i) = ub(l); end
-                if Ci(l) < 0; D(k, i) = lb(l); end
+                if Ci(l) > 0; possible_d(k, i) = ub(l); end
+                if Ci(l) < 0; possible_d(k, i) = lb(l); end
             end
-            D(Bi, i) = w(Bi);  % TODO factor this into a KKT if statement
+            possible_d(Bi, i) = w(Bi);  % TODO factor this into a KKT if statement
         end
     end
 
@@ -387,16 +411,17 @@ function [outs, lam_outs, gam_outs, del_outs d] = becomes_free_gen(mu, covar, in
     % need to check rather than assume or will get an index error
     if (outs ~= NA)
         % select correponding gamma and delta multipliers
-        [gam_outs, del_outs] = [gam(outs), del(outs)];
+        gam_outs = gam(outs);
+        del_outs = del(outs);
     else
-        [gam_outs, del_outs] = NA;
+        gam_outs = del_outs = NA;
     end
 
     % only have d if outs defined and doing full KKT check
     if (outs == NA) || (KKT == 0) || (KKT == 2)  
         d = NA;
     else
-        d = D(:, outs);
+        d = possible_d(:, outs);
     end
 end
 
@@ -418,10 +443,12 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT=1, debug=
     t = 1;  % so current w will be ws(:,t)
 
     while true
+        lam_current
         % case a where a free asset moves to its bound
-        [i_ins, lam_ins, gam_ins, del_ins, b_ins, d_ins] = move_to_bound_gen(mu, covar, invcovarF, lb, ub, F, B, S, D, lam_current, ws(:,t), KKT);
+        % DEBUG - uncomment once done 
+        [i_ins, lam_ins, gam_ins, del_ins, b_ins, d_ins] = move_to_bound_gen(mu, covar, invcovarF, lb, ub, F, B, S, D, lam_current, ws(:,t), KKT)
         % case b where an asset on its bound becomes free
-        [i_outs, lam_outs, gam_outs, del_outs, d_outs] = becomes_free_gen(mu, covar, invcovarF, mu(F), lb, ub, F, B, S, D, lam_current, ws(:,t), KKT);
+        [i_outs, lam_outs, gam_outs, del_outs, d_outs] = becomes_free_gen(mu, covar, invcovarF, mu(F), lb, ub, F, B, S, D, lam_current, ws(:,t), KKT)
 
         if (i_ins ~= NA || i_outs ~= NA)
             lam_current = max(lam_ins, lam_outs);
@@ -429,8 +456,9 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT=1, debug=
             % if lam < 0 the risk is increasing again, make lam = 0 the last iteration
             if lam_current < 0;
                 lam_current = 0;
+
                 % since value of lambda change need to recalculate gamma and delta
-                [gam, del, C_null, lam_null] = multiplier_update(F, B, S, D, w, invcovarF, covar(F,B), mu(F), lam_current, lb, ub, false);
+                [gam, del, C_null, lam_null] = multiplier_update(F, B, S, D, ws(F,t), invcovarF, covar(F,B), mu(F), lam_current, lb, ub, false);
                 % NOTE don't actually need C or lambda; which makes choice of m2b redudent
             else
                 % need to know which lambda won
@@ -449,7 +477,13 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT=1, debug=
             t = t+1;
 
             % update w_F^(t)
-            ws(F,t) = lam_current*(invcovarF*mu(F)) + [repmat(gam*sum(invcovarF(S,S), 2), size(S)); repmat(del*sum(invcovarF(D,D), 2), size(D))];
+            F_D = subindex(D, F);
+            F_S = subindex(S, F);
+            % gam
+            % gam*sum(invcovarF(F_S,F_S), 2)
+            % del*sum(invcovarF(F_D,F_D), 2)
+            % ws(F,t) = lam_current*(invcovarF*mu(F)) + [repmat(gam*sum(invcovarF(F_S,F_S), 2), size(F_S)), repmat(del*sum(invcovarF(F_D,F_D), 2), size(F_D))]';  % BUG this this was incorrect
+            ws(F,t) = lam_current*(invcovarF*mu(F)) + [gam*sum(invcovarF(F_S,F_S), 2)', del*sum(invcovarF(F_D,F_D), 2)']'
             % have an extra term unless b is empty
             if ~isempty(B)
                 ws(F,t) = ws(F,t) - invcovarF*(covar(F,B)*ws(B,t));
@@ -522,7 +556,8 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT=1, debug=
         end
     end
     % only return w2, w3, etc since w0 and w1 coincide  % TODO work out why
-    ws = ws(:, 2:end)';
+    % BUG this doesn't seem to apply to the genetics code, not sure why
+    % ws = ws(:, 2:end)';
 end
 
 
@@ -542,4 +577,4 @@ covar = [
 ];
 
 
-ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D)
+ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D)'
