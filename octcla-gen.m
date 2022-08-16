@@ -127,10 +127,9 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
     % NOTE This started mostly me just working through the full set of multiplier
     % update equations. I underestimated just how complicated they would be to
     % implement, even with just that one extra constraint, so was trying to get
-    % to grips with how they would link into each other in code. I'm not even sure
-    % it will actually be functional as written but it turned out actually to be
-    % useful/integral to write code which didn't include lots of duplication and/or
-    % inefficiently passing way too many variables around.
+    % to grips with how they would link into each other in code. It turned out
+    % actually to be useful/integral to write code which didn't include lots of
+    % duplication and/or inefficiently passing way too many variables around.
     %
     % The `m2b' argument determines which branch of the algorithm the function
     % is being called in. If m2b = true, it's in move_to_bound, otherwise it's
@@ -164,11 +163,10 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
 
     % TODO refactor to involve code duplication
     % components of x & y are reused elsewhere so split up
-    if isempty(B)
-        % if B empty we get massive cancellations
-        x_p1 = 0.5;
-        y_p1 = 0.5;
-    else
+    x_p1 = 0.5;
+    y_p1 = 0.5;
+    % if B empty we get massive cancellations, so only consider non-empty case
+    if ~isempty(B)
         % for x & y also need sub-indexed wB
         B_D = subindex(D, B);
         B_S = subindex(S, B);
@@ -177,15 +175,16 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
         % first part of x and y when B non-empty
         if isempty(B_D)
             % cancellations if no bounded dams
-            x_p1 = 0.5 + eF_DinvcovarF_DD*(covarFB(F_D, B_S)*wB_S);
-            y_p1 = 0.5 - sum(wB_S, 1) + eF_SinvcovarF_SS*(covarFB(F_S, B_S)*wB_S);
+            x_p1 = x_p1 + eF_DinvcovarF_DD*(covarFB(F_D, B_S)*wB_S);
+            y_p1 = y_p1 - sum(wB_S, 1) + eF_SinvcovarF_SS*(covarFB(F_S, B_S)*wB_S);
         elseif isempty(B_S)
             % cancellations if no bounded sires
-            x_p1 = 0.5 - sum(wB_D, 1) + eF_DinvcovarF_DD*(covarFB(F_D, B_D)*wB_D);
-            y_p1 = 0.5 + eF_SinvcovarF_SS*(covarFB(F_S, B_D)*wB_D);
+            x_p1 = x_p1 - sum(wB_D, 1) + eF_DinvcovarF_DD*(covarFB(F_D, B_D)*wB_D);
+            y_p1 = y_p1 + eF_SinvcovarF_SS*(covarFB(F_S, B_D)*wB_D);
         else
-            x_p1 = 0.5 - sum(wB_D, 1) + eF_DinvcovarF_DD*(covarFB(F_D, B_S)*wB_S) + eF_DinvcovarF_DD*(covarFB(F_D, B_D)*wB_D);
-            y_p1 = 0.5 - sum(wB_S, 1) + eF_SinvcovarF_SS*(covarFB(F_S, B_S)*wB_S) + eF_SinvcovarF_SS*(covarFB(F_S, B_D)*wB_D);
+            % no cancellations if we've bounded dams and sires
+            x_p1 = x_p1 - sum(wB_D, 1) + eF_DinvcovarF_DD*(covarFB(F_D, B_S)*wB_S) + eF_DinvcovarF_DD*(covarFB(F_D, B_D)*wB_D);
+            y_p1 = y_p1 - sum(wB_S, 1) + eF_SinvcovarF_SS*(covarFB(F_S, B_S)*wB_S) + eF_SinvcovarF_SS*(covarFB(F_S, B_D)*wB_D);
         end
     end
 
@@ -398,7 +397,7 @@ function [outs, lam_outs, gam_outs, del_outs d] = becomes_free_gen(mu, covar, in
         j = length(Fi);  % Fi[j] = i; i last element in Fi by construction
 
         % calculate derivative and multiplier updates using function
-        [del_vec, gam_vec, Ci, lam_vec] = multiplier_update(Fi, Bi, S, D, w, invcovarFi, covarFiBi, mu(Fi), lam_current, lb, ub, false);
+        [del_vec, gam_vec, Ci, lam_vec] = multiplier_update(Fi, Bi, S, D, w, invcovarFi, covarFiBi, mu(Fi), lam_current, lb, ub, false)
         lam(i) = lam_vec(j);
         del(i) = del_vec(j);
         gam(i) = gam_vec(j);
@@ -454,9 +453,9 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT=1, debug=
         lam_current
         % case a where a free asset moves to its bound
         % DEBUG - uncomment once done 
-        [i_ins, lam_ins, gam_ins, del_ins, b, d_ins] = move_to_bound_gen(mu, covar, invcovarF, lb, ub, F, B, S, D, lam_current, ws(:,t), KKT)
+        [i_ins, lam_ins, gam_ins, del_ins, b, d_ins] = move_to_bound_gen(mu, covar, invcovarF, lb, ub, F, B, S, D, lam_current, ws(:,t), KKT);
         % case b where an asset on its bound becomes free
-        [i_outs, lam_outs, gam_outs, del_outs, d_outs] = becomes_free_gen(mu, covar, invcovarF, mu(F), lb, ub, F, B, S, D, lam_current, ws(:,t), KKT)
+        [i_outs, lam_outs, gam_outs, del_outs, d_outs] = becomes_free_gen(mu, covar, invcovarF, mu(F), lb, ub, F, B, S, D, lam_current, ws(:,t), KKT);
 
         if (i_ins ~= NA || i_outs ~= NA)
             lam_current = max(lam_ins, lam_outs);
@@ -470,9 +469,11 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT=1, debug=
             else
                 % need to know which lambda won
                 if lam_current == lam_ins  % can do without tol comparison since come from max
+                    printf("Going inside\n")
                     gam = gam_ins;
                     del = del_ins;
                 else
+                    printf("Going outside\n")
                     gam = gam_outs;
                     del = del_outs;
                 end
@@ -482,14 +483,15 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT=1, debug=
             ws = [ws, zeros(length(mu),1)];
             ws(B, t+1) = ws(B, t);
             t = t+1;
+            ws
 
             % update w_F^(t)
             F_D = subindex(D, F);
             F_S = subindex(S, F);
             % gam
             % ws(F,t) = lam_current*(invcovarF*mu(F)) + [repmat(gam*sum(invcovarF(F_S,F_S), 2), size(F_S)), repmat(del*sum(invcovarF(F_D,F_D), 2), size(F_D))]';  % BUG this this was incorrect
-            lam_current*(invcovarF*mu(F)) + [gam*sum(invcovarF(F_S,F_S), 2)', del*sum(invcovarF(F_D,F_D), 2)']'
-            ws(F,t) = lam_current*(invcovarF*mu(F)) + [gam*sum(invcovarF(F_S,F_S), 2)', del*sum(invcovarF(F_D,F_D), 2)']'
+            lam_current*(invcovarF*mu(F)) + [gam*sum(invcovarF(F_S,F_S), 2)', del*sum(invcovarF(F_D,F_D), 2)']';
+            ws(F,t) = lam_current*(invcovarF*mu(F)) + [gam*sum(invcovarF(F_S,F_S), 2)', del*sum(invcovarF(F_D,F_D), 2)']';
             % have an extra term unless b is empty
             if ~isempty(B)
                 ws(F,t) = ws(F,t) - invcovarF*(covar(F,B)*ws(B,t));
@@ -527,6 +529,7 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT=1, debug=
 
             if (KKT > 0)
                 printf('Checking KKT conditions...')
+                % ws'
                 errors = 0;
 
                 if (KKT == 1) || (KKT == 3)
