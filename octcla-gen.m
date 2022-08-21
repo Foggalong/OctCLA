@@ -248,7 +248,7 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
     lam_den_p1 = [repmat(b*y_p2 - a*x_p2, size(F_S)), repmat(c*x_p2 - a*y_p2, size(F_D))]';
 
     lam_den_p2 = invcovarF*(lam_den_p1 + determinant*muF);
-    lambda = (lam_num_p1 + lam_num_p2)./lam_den_p2;  % TODO Check this vectorisation works
+    lambda = (lam_num_p1 + invcovarF*lam_num_p2)./lam_den_p2;
 
     % matrix entries on the RHS of the multipler linear system
     x = x_p1 - lambda*x_p2;
@@ -397,7 +397,8 @@ function [outs, lam_outs, gam_outs, del_outs d] = becomes_free_gen(mu, covar, in
         j = length(Fi);  % Fi[j] = i; i last element in Fi by construction
 
         % calculate derivative and multiplier updates using function
-        [del_vec, gam_vec, Ci, lam_vec] = multiplier_update(Fi, Bi, S, D, w, invcovarFi, covarFiBi, mu(Fi), lam_current, lb, ub, false)
+        % BUG this is calculating MANY unneeded values just to get the ith
+        [gam_vec, del_vec, Ci, lam_vec] = multiplier_update(Fi, Bi, S, D, w, invcovarFi, covarFiBi, mu(Fi), lam_current, lb, ub, false);
         lam(i) = lam_vec(j);
         del(i) = del_vec(j);
         gam(i) = gam_vec(j);
@@ -450,7 +451,6 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT=1, debug=
     t = 1;  % so current w will be ws(:,t)
 
     while true
-        lam_current
         % case a where a free asset moves to its bound
         % DEBUG - uncomment once done 
         [i_ins, lam_ins, gam_ins, del_ins, b, d_ins] = move_to_bound_gen(mu, covar, invcovarF, lb, ub, F, B, S, D, lam_current, ws(:,t), KKT);
@@ -483,14 +483,10 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT=1, debug=
             ws = [ws, zeros(length(mu),1)];
             ws(B, t+1) = ws(B, t);
             t = t+1;
-            ws
 
             % update w_F^(t)
             F_D = subindex(D, F);
             F_S = subindex(S, F);
-            % gam
-            % ws(F,t) = lam_current*(invcovarF*mu(F)) + [repmat(gam*sum(invcovarF(F_S,F_S), 2), size(F_S)), repmat(del*sum(invcovarF(F_D,F_D), 2), size(F_D))]';  % BUG this this was incorrect
-            lam_current*(invcovarF*mu(F)) + [gam*sum(invcovarF(F_S,F_S), 2)', del*sum(invcovarF(F_D,F_D), 2)']';
             ws(F,t) = lam_current*(invcovarF*mu(F)) + [gam*sum(invcovarF(F_S,F_S), 2)', del*sum(invcovarF(F_D,F_D), 2)']';
             % have an extra term unless b is empty
             if ~isempty(B)
@@ -565,8 +561,7 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT=1, debug=
         end
     end
     % only return w2, w3, etc since w0 and w1 coincide  % TODO work out why
-    % BUG this doesn't seem to apply to the genetics code, not sure why
-    % ws = ws(:, 2:end)';
+    ws = ws(:, 2:end)';
 end
 
 
