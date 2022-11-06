@@ -11,34 +11,35 @@ printf(['OctCLA Genetics v' version '\n'])
 % carry out calculations or operations the results of which the algorithm uses.
 
 % This file depends on the following functions from the standard implementation:
+%  - MAX_BOUNDED maximum value in x satisfying x(i) < x_bound
 %  - INVERSE_SHRINK adjust the inverse if gaining a row and column
 %  - INVERSE_SHRINK adjust the inverse if removing row and column i
 source('octcla.m')  % NOTE must come before redefining 
 
-function [imax, xmax] = argmax(x, a=inf, X=1:length(x), tol=1e-10)  % TODO check this is sensible
-    % ARGMAX return index and value of highest item in a list
+function [x_max, i_max] = max_conditional(x, x_bound, index_set, tol=1e-10)
+    % MAX_CONDITIONAL return value and index of highest item meeting conditions
     %
-    % Takes a vector x as input and then returns the index imax and value xmax
-    % of the highest value in x, or NA if x is empty. Can also take an optional
-    % second input a, restricting the chosen x(j) to satisfy x(j) < a, an
-    % optional third argument X, an index set from which j must come, and an
-    % optional fourth argument tol for controlling the comparison tolerance.
+    % Takes a vector x, a number x_bound, and a set of indices index_set as inputs
+    % and returns the value x_max and index i_max of the highest value in x
+    % satisfying conditions that i_max is in index_set and x(i_max) < x_bound.
+    % Note if index_set = 1:length(x) the function is equivalent to max_bounded.
+    % Also takes an optional value tol which specifies tolerance for comparisons.
     %
-    % See also, MAX.
+    % See also, MAX, MAX_BOUNDED
 
     % starting values catch the case where x empty
-    imax = 0;
-    xmax = -inf;
-    % TODO see if this function can be vectorised
-    for i = X
-        % if a=inf second check always satified
-        if (tol < x(i)-xmax && tol < a-x(i) && ismember(i, X))
-            xmax = x(i); imax = i;
+    x_max = -inf;
+    i_max = 0;
+    % only interested in indicies from index_set so iterate over them
+    for i = index_set
+        % if x_bound=inf second check always satified
+        if (tol < x(i)-x_max && tol < x_bound-x(i))
+            x_max = x(i); i_max = i;
         end
     end
     % if no max found, return NA
-    if imax == 0
-        imax = NA; xmax = NA;
+    if i_max == 0
+        x_max = NA; i_max = NA;
     end
 end
 
@@ -93,28 +94,28 @@ function [F, B, w] = starting_solution_gen(mu, lb, ub, S, D, tol=1e-10)
     % start with all assets on their lower bound
     w = lb;
 
+    % setting condition to inf ensures 1st value satisfies mi(i) < mu_max
+    mu_max = inf;
     % increase sire weights in descending order of expected return
-    i = argmax(mu, a=inf, X=S);
     while (abs(sum(w(S)) - 0.5) > tol)
-        i_free = i;
+        [mu_max, i] = max_conditional(mu, mu_max, S);
         w(i) = min(ub(i), lb(i)+0.5-sum(w(S)));
-        i = argmax(mu, a=mu(i), X=S);
     end
     % only one sire starts free
-    F = [i_free];
-    B = S(S ~= i_free);
+    F = [i];
+    B = S(S ~= i);
 
+    % setting condition to inf ensures 1st value satisfies mi(i) < mu_max
+    mu_max = inf;
     % increase dam weights in descending order of expected return
-    i = argmax(mu, a=inf, X=D);
     while (abs(sum(w(D)) - 0.5) > tol)
-        i_free = i;
+        [mu_max, i] = max_conditional(mu, mu_max, D);
         w(i) = min(ub(i), lb(i)+0.5-sum(w(D)));
-        i = argmax(mu, a=mu(i), X=D);
     end
     % only one dam starts free
-    F = [F, i_free];
+    F = [F, i];
     % all other dams start on bounds
-    B = [B, D(D ~= i_free)];
+    B = [B, D(D ~= i)];
 end
 
 
@@ -327,10 +328,10 @@ function [ins, lam_ins, gam_ins, del_ins, b_ins, d] = move_to_bound_gen(mu, cova
     end
     
     % check whether found new turning point
-    [ins, lam_ins] = argmax(lam, lam_current);
+    [lam_ins, ins] = max_bounded(lam, lam_current);
 
     if isnan(ins)
-        % other variables set to NA/inf by argmax
+        % other variables set to NA/inf by max_bounded
         b_ins = gam_ins = del_ins = NA;
     elseif ((length(F_D) == 1) && (ismember(ins, D)))
         % can't move sole free dam to bound
@@ -414,7 +415,7 @@ function [outs, lam_outs, gam_outs, del_outs d] = becomes_free_gen(mu, covar, in
     end
 
     % check whether found new turning point
-    [outs, lam_outs] = argmax(lam, lam_current);
+    [lam_outs, outs] = max_bounded(lam, lam_current);
 
     % need to check rather than assume or will get an index error
     if (outs ~= NA)

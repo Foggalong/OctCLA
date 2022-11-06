@@ -10,28 +10,29 @@ printf(['OctCLA v' version '\n'])
 % These functions aren't actually part of the algorithm themselves, but they
 % carry out calculations or operations the results of which the algorithm uses.
 
-function [imax, xmax] = argmax(x, a=inf, tol=1e-10)  % TODO check this is sensible
-    % ARGMAX return index and value of highest item in a list
+function [x_max, i_max] = max_bounded(x, x_bound, tol=1e-10)
+    % MAX_BOUNDED return value and index of highest item less than a bound
     %
-    % Takes a vector x as input and then returns the index imax and value xmax
-    % of the highest value in x, or NA if x is empty. Can also take an optional
-    % second input a, restricting the chosen x(j) to satisfy x(j) < a.
+    % Takes a vector x and a number x_bound as input and then returns the value
+    % x_max and index i_max of the highest value in x satisfying the condition
+    % x(i_max) < x_bound. Can also take an optional value tol which specifies
+    % the tolerance for comparisons.
     %
     % See also, MAX.
 
     % starting values catch the case where x empty
-    imax = 0;
-    xmax = -inf;
-    % TODO see if this function can be vectorised
+    x_max = -inf;
+    i_max = 0;
+    % want the index, so iterate over location rather than value
     for i = 1:length(x)
-        % if a=inf second check always satified
-        if (tol < x(i)-xmax && tol < a-x(i))
-            xmax = x(i); imax = i;
+        % if x_bound=inf second check always satified, equivalent to max(x)
+        if (tol < x(i)-x_max && tol < x_bound-x(i))
+            x_max = x(i); i_max = i;
         end
     end
     % if no max found, return NA
-    if imax == 0
-        imax = NA; xmax = NA;
+    if i_max == 0
+        x_max = NA; i_max = NA;
     end
 end
 
@@ -215,18 +216,18 @@ function [F, B, w] = starting_solution(mu, lb, ub)
 
     % start with all assets on their lower bound
     w = lb;
+    % setting condition to inf makes max_bounded(mu, mu_max) equivalent to max(mu)
+    mu_max = inf;
     % increase assest weights in descending order of expected return
-    i = argmax(mu);
     while sum(w) < 1
-        i_free = i;
+        [mu_max, i] = max_bounded(mu, mu_max);
         w(i) = min(ub(i), lb(i)+1-sum(w));
-        i = argmax(mu, mu(i));
     end
     % only one asset starts free
-    F = [i_free];
+    F = [i];
     % all other assets start on bounds
     B = 1:length(mu);
-    B = B(B ~= i_free);
+    B = B(B ~= i);
 end
 
 % TODO added a B argument which isn't in the original, need to check if it can be removed
@@ -301,7 +302,7 @@ function [ins, lam_ins, b_ins, d] = move_to_bound(mu, covar, invcovarF, lb, ub, 
     end
 
     % check whether found new turning point
-    [ins, lam_ins] = argmax(lam, lam_current);
+    [lam_ins, ins] = max_bounded(lam, lam_current);
     if isnan(ins)
         b_ins = NA;
     else
@@ -381,7 +382,7 @@ function [outs, lam_outs, d] = becomes_free(mu, covar, invcovarF, lb, ub, F, B,
     end
 
     % check whether found new turning point
-    [outs, lam_outs] = argmax(lam, lam_current);
+    [lam_outs, outs] = max_bounded(lam, lam_current);
 
     % only have d if outs defined and doing full KKT check
     if (outs == NA) || (KKT == 0) || (KKT == 2)  
