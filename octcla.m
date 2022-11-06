@@ -300,6 +300,7 @@ function [ins, lam_ins, b_ins, d] = move_to_bound(mu, covar, invcovarF, lb, ub, 
         d = NA;
     end
 
+    % check whether found new turning point
     [ins, lam_ins] = argmax(lam, lam_current);
     if isnan(ins)
         b_ins = NA;
@@ -336,7 +337,7 @@ function [outs, lam_outs, d] = becomes_free(mu, covar, invcovarF, lb, ub, F, B,
     lam = zeros(length(mu), 1);  % lambda vector
     % only need D if running the full KKT check
     if (KKT == 1) || (KKT == 3)
-        D = zeros(length(mu), length(mu));  % matrix of potential d vectors
+        possible_d = zeros(length(mu), length(mu));  % matrix of potential d vectors
     end
 
     for i = B
@@ -359,10 +360,10 @@ function [outs, lam_outs, d] = becomes_free(mu, covar, invcovarF, lb, ub, F, B,
         if (KKT == 1) || (KKT == 3)
             for l = 1:length(Fi)
                 k = Fi(l);
-                if Ci(l) > 0; D(k, i) = ub(l); end
-                if Ci(l) < 0; D(k, i) = lb(l); end
+                if Ci(l) > 0; possible_d(k, i) = ub(l); end
+                if Ci(l) < 0; possible_d(k, i) = lb(l); end
             end
-            D(Bi, i) = w(Bi);  % TODO factor this into a KKT if statement
+            possible_d(Bi, i) = w(Bi);  % TODO factor this into a KKT if statement
         end
 
         % handle case in NOTE A2
@@ -379,12 +380,14 @@ function [outs, lam_outs, d] = becomes_free(mu, covar, invcovarF, lb, ub, F, B,
         lam(i) = (lami_p1-lami_p2)/Ci(j);
     end
 
+    % check whether found new turning point
     [outs, lam_outs] = argmax(lam, lam_current);
+
     % only have d if outs defined and doing full KKT check
     if (outs == NA) || (KKT == 0) || (KKT == 2)  
         d = NA;
     else
-        d = D(:, outs);
+        d = possible_d(:, outs);
     end
 end
 
@@ -409,6 +412,7 @@ function ws = calculate_turningpoints(mu, covar, lb, ub, KKT=1, debug=false)
     [F, B, ws] = starting_solution(mu, lb, ub);
 
     % initial inversion, the only one calculated without shortcuts
+    % TODO this is a 1x1 matrix, should be able to just take reciprocal 
     invcovarF = inv(covar(F,F));
 
     lam_current = inf;
