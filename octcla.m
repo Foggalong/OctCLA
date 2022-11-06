@@ -337,7 +337,7 @@ function [outs, lam_outs, d] = becomes_free(mu, covar, invcovarF, lb, ub, F, B,
     lam = zeros(length(mu), 1);  % lambda vector
     % only need D if running the full KKT check
     if (KKT == 1) || (KKT == 3)
-        D = zeros(length(mu), length(mu));  % matrix of potential d vectors
+        possible_d = zeros(length(mu), length(mu));  % matrix of potential d vectors
     end
 
     for i = B
@@ -360,10 +360,10 @@ function [outs, lam_outs, d] = becomes_free(mu, covar, invcovarF, lb, ub, F, B,
         if (KKT == 1) || (KKT == 3)
             for l = 1:length(Fi)
                 k = Fi(l);
-                if Ci(l) > 0; D(k, i) = ub(l); end
-                if Ci(l) < 0; D(k, i) = lb(l); end
+                if Ci(l) > 0; possible_d(k, i) = ub(l); end
+                if Ci(l) < 0; possible_d(k, i) = lb(l); end
             end
-            D(Bi, i) = w(Bi);  % TODO factor this into a KKT if statement
+            possible_d(Bi, i) = w(Bi);  % TODO factor this into a KKT if statement
         end
 
         % handle case in NOTE A2
@@ -387,7 +387,7 @@ function [outs, lam_outs, d] = becomes_free(mu, covar, invcovarF, lb, ub, F, B,
     if (outs == NA) || (KKT == 0) || (KKT == 2)  
         d = NA;
     else
-        d = D(:, outs);
+        d = possible_d(:, outs);
     end
 end
 
