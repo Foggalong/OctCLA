@@ -5,12 +5,12 @@
 format compact
 format long
 
-% FINANCE CODE DEMO
+disp("FINANCE CODE DEMO")
 % TODO write a suitable description of this code
-addpath(genpath('finance/'))
+addpath(genpath("finance/"))
 
 % read data from input file into variables
-data = csvread('example_input.csv');
+data = csvread("demo/input.csv");
 mu = data(2,:)';
 lb = data(3,:)';
 ub = data(4,:)';
@@ -22,10 +22,10 @@ sols = calculate_turningpoints(mu, covar, lb, ub, 3)';
 toc
 
 % write output to file for reference
-csvwrite('finance_output.csv', sols)
+csvwrite("demo/output.csv", sols)
 
 % read truth into matrix
-truth = csvread('example_truth.csv');
+truth = csvread("demo/truth.csv");
 
 % check if any entry in absolute error matrix greater than tolerance
 tol = 1e-10;
@@ -37,10 +37,11 @@ else
     disp("Success!")
 end
 
+disp("")  % padding
 
-% GENETICS CODE DEMO
+disp("GENETICS CODE DEMO")
 % TODO write a suitable description of this code
-addpath(genpath('genetics/'))
+addpath(genpath("genetics/"))
 
 % set up the problem manually using variables
 S  = [1];  % MATLAB will make a double, but that's fine
