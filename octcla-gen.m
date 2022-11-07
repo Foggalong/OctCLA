@@ -1,5 +1,4 @@
-version = '0.4.1';
-printf(['OctCLA Genetics v' version '\n'])
+disp('OctCLA Genetics v0.4.1')
 
 % This file octcla-gen.m is part of OctCLA, Copyright (c) 2022 Josh Fogg, released
 % under the MIT License. For more info see https://github.com/Foggalong/OctCLA
@@ -14,22 +13,26 @@ printf(['OctCLA Genetics v' version '\n'])
 %  - MAX_BOUNDED maximum value in x satisfying x(i) < x_bound
 %  - INVERSE_SHRINK adjust the inverse if gaining a row and column
 %  - INVERSE_SHRINK adjust the inverse if removing row and column i
-source('octcla.m')  % NOTE must come before redefining 
+% source('../octcla.m')  % NOTE command only GNU Octave compatible
 
-function [x_max, i_max] = max_conditional(x, x_bound, index_set, tol=1e-10)
+function [x_max, i_max] = max_conditional(x, x_bound, index_set, tol)
     % MAX_CONDITIONAL return value and index of highest item meeting conditions
     %
     % Takes a vector x, a number x_bound, and a set of indices index_set as inputs
     % and returns the value x_max and index i_max of the highest value in x
     % satisfying conditions that i_max is in index_set and x(i_max) < x_bound.
     % Note if index_set = 1:length(x) the function is equivalent to max_bounded.
-    % Also takes an optional value tol which specifies tolerance for comparisons.
+    % Takes an optional value tol which specifies tolerance (default: 10^-10).
     %
     % See also, MAX, MAX_BOUNDED
+
+    % set default value for tolerance
+    if (nargin < 4); tol = 1e-10; end
 
     % starting values catch the case where x empty
     x_max = -inf;
     i_max = 0;
+
     % only interested in indicies from index_set so iterate over them
     for i = index_set
         % if x_bound=inf second check always satified
@@ -37,9 +40,10 @@ function [x_max, i_max] = max_conditional(x, x_bound, index_set, tol=1e-10)
             x_max = x(i); i_max = i;
         end
     end
-    % if no max found, return NA
+
+    % if no max found, return NaN
     if i_max == 0
-        x_max = NA; i_max = NA;
+        x_max = NaN; i_max = NaN;
     end
 end
 
@@ -79,7 +83,7 @@ end
 % handling the case when an asset become free, and then calculating the
 % turning points themselves through CLA.
 
-function [F, B, w] = starting_solution_gen(mu, lb, ub, S, D, tol=1e-10)
+function [F, B, w] = starting_solution_gen(mu, lb, ub, S, D, tol)
     % STARTING_SOLUTION_GEN return starting solution for CLA genetics problems
     %
     % Takes a vector of expected returns (mu), a vector of lower bounds on assest
@@ -90,6 +94,9 @@ function [F, B, w] = starting_solution_gen(mu, lb, ub, S, D, tol=1e-10)
     % argument for controlling the tolerance for comparisons (tol).
     %
     % See also, STARTING_SOLUTION, CALCULATE_TURNINGPOINTS_GEN
+
+    % set default value for tolerance
+    if (nargin < 6); tol = 1e-10; end  % TODO check this is sensible
 
     % start with all assets on their lower bound
     w = lb;
@@ -119,7 +126,7 @@ function [F, B, w] = starting_solution_gen(mu, lb, ub, S, D, tol=1e-10)
 end
 
 
-function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, covarFB, muF, lam_current, lb, ub, m2b, tol=1e-10)
+function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, covarFB, muF, lam_current, lb, ub, m2b, tol)
     % MULTIPLIER_UPDATE handle the updating of lagrangian multipliers
     % 
     % TODO Write a proper function description.
@@ -137,7 +144,10 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
     % in becomes_free. This changes how the b vector is calculated.
     %
     % See also, ???  % TODO lookup what MATLAB standard is when this is empty 
-    
+
+    % set default value for tolerance
+    if (nargin < 13); tol = 1e-10; end  % TODO check this is sensible
+
     % want D and S to be indexes in free assets, not indexes in all the assets
     F_D = subindex(D, F);
     F_S = subindex(S, F);
@@ -149,11 +159,11 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
     % d = a, so doesn't need repeating
 
     % determinant of the multiplier linear system
-    determinant = a**2 - b*c;
+    determinant = a^2 - b*c;
     % BUG work out when this occurs; could be impossible in well formed problems
     if (abs(determinant) < tol)
         % TODO work out how to handle situations
-        printf("ERROR! Linear system has no solutions")
+        disp("ERROR! Linear system has no solutions")
     end
 
     % column sums of the four quadrants of invcovarF
@@ -171,8 +181,9 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
         % for x & y also need sub-indexed wB
         B_D = subindex(D, B);
         B_S = subindex(S, B);
-        wB_S = w(B)(B_S);
-        wB_D = w(B)(B_D);
+        wB = w(B);
+        wB_S = wB(B_S);
+        wB_D = wB(B_D);
         % first part of x and y when B non-empty
         if isempty(B_D)
             % cancellations if no bounded dams
@@ -198,7 +209,7 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
         gam = (a*x_p1 - b*y_p1)/determinant;
         del = (a*y_p1 - c*x_p1)/determinant;
         lambda = 0;
-        C = NA;  % not needed
+        C = NaN;  % not needed
         return
     end
 
@@ -286,7 +297,7 @@ function [ins, lam_ins, gam_ins, del_ins, b_ins, d] = move_to_bound_gen(mu, cova
     F_D = subindex(D, F);
     F_S = subindex(S, F);
     if (length(F_D) == 1) && (length(F_S) == 1)
-        ins = b_ins = gam_ins = del_ins = d = NA; lam_ins = -inf;
+        ins = NaN; b_ins = NaN; gam_ins = NaN; del_ins = NaN; d = NaN; lam_ins = -inf;
         return
     end
 
@@ -324,21 +335,21 @@ function [ins, lam_ins, gam_ins, del_ins, b_ins, d] = move_to_bound_gen(mu, cova
         d = b;
         d(B) = w(B);
     else
-        d = NA;
+        d = NaN;
     end
     
     % check whether found new turning point
     [lam_ins, ins] = max_bounded(lam, lam_current);
 
     if isnan(ins)
-        % other variables set to NA/inf by max_bounded
-        b_ins = gam_ins = del_ins = NA;
+        % other variables set to NaN/inf by max_bounded
+        b_ins = NaN; gam_ins = NaN; del_ins = NaN;
     elseif ((length(F_D) == 1) && (ismember(ins, D)))
         % can't move sole free dam to bound
-        ins = b_ins = gam_ins = del_ins = d = NA; lam_ins = -inf;
+        ins = NaN; b_ins = NaN; gam_ins = NaN; del_ins = NaN; d = NaN; lam_ins = -inf;
     elseif (length(F_S) == 1) && (ismember(ins, S))
-        % can't move sole free dam to bound
-        ins = b_ins = gam_ins = del_ins = d = NA; lam_ins = -inf;
+        % can't move sole free sire to bound
+        ins = NaN; b_ins = NaN; gam_ins = NaN; del_ins = NaN; d = NaN; lam_ins = -inf;
     else
         % found a turning point, return b
         b_ins = b(ins);
@@ -368,7 +379,7 @@ function [outs, lam_outs, gam_outs, del_outs d] = becomes_free_gen(mu, covar, in
 
     % skip proceedure if all assets are free
     if (length(F) == length(mu))
-        outs = gam_outs = del_outs = d = NA; lam_outs = -inf;
+        outs = NaN; gam_outs = NaN; del_outs = NaN; d = NaN; lam_outs = -inf;
         return
     end
 
@@ -418,28 +429,41 @@ function [outs, lam_outs, gam_outs, del_outs d] = becomes_free_gen(mu, covar, in
     [lam_outs, outs] = max_bounded(lam, lam_current);
 
     % need to check rather than assume or will get an index error
-    if (outs ~= NA)
+    if (outs ~= NaN)
         % select correponding gamma and delta multipliers
         gam_outs = gam(outs);
         del_outs = del(outs);
     else
-        gam_outs = del_outs = NA;
+        gam_outs = NaN; del_outs = NaN;
     end
 
     % only have d if outs defined and doing full KKT check
-    if (outs == NA) || (KKT == 0) || (KKT == 2)  
-        d = NA;
+    if (outs == NaN) || (KKT == 0) || (KKT == 2)  
+        d = NaN;
     else
         d = possible_d(:, outs);
     end
 end
 
-function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT=1, debug=false)
+function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT)
     % CALCULATE_TURNINGPOINTS_GEN return portfolio weights at genetics CLA turning points
     %
-    % TODO write function description
+    % Takes a vector of expected returns (mu), a covariance matrix (covar), a
+    % vector of lower bounds on assest weights (lb), a vector of upper bounds
+    % on asset weights (ub), a set of sire indexes (S), and a set of dam indexes
+    % (D) and then calculates the turning points of the corresponding genetics
+    % portfolio using the Critical Line Algorithm. The function returns a matrix
+    % of the portfolio asset weights at each of those points (ws).
+    %
+    % Takes an optional integer argument (KKT) which indicates whether calculated
+    % turning points should be verified through a KKT conditions check and if so
+    % by what type of check (0: none, 1: simple (default), 2: full, 3: both).
+    %
     %
     % See also, STARTING_SOLUTION_GEN, BECOMES_FREE_GEN, MOVE_TO_BOUND_GEN
+
+    % set default value for KKT
+    if (nargin < 7); KKT = 1; end
 
     % calculate starting solution
     [F, B, ws] = starting_solution_gen(mu, lb, ub, S, D);
@@ -458,7 +482,7 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT=1, debug=
         % case b where an asset on its bound becomes free
         [i_outs, lam_outs, gam_outs, del_outs, d_outs] = becomes_free_gen(mu, covar, invcovarF, mu(F), lb, ub, F, B, S, D, lam_current, ws(:,t), KKT);
 
-        if (i_ins ~= NA || i_outs ~= NA)
+        if (i_ins ~= NaN || i_outs ~= NaN)
             lam_current = max(lam_ins, lam_outs);
 
             % if lam < 0 the risk is increasing again, make lam = 0 the last iteration
@@ -470,11 +494,11 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT=1, debug=
             else
                 % need to know which lambda won
                 if lam_current == lam_ins  % can do without tol comparison since come from max
-                    printf("Going inside\n")
+                    disp("Going inside")
                     gam = gam_ins;
                     del = del_ins;
                 else
-                    printf("Going outside\n")
+                    disp("Going outside")
                     gam = gam_outs;
                     del = del_outs;
                 end
@@ -525,7 +549,7 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT=1, debug=
             % NOTE doesn't check lam=0 soln since it's not (necessarily) a TP.
 
             if (KKT > 0)
-                printf('Checking KKT conditions...')
+                disp('Checking KKT conditions...')
                 % ws'
                 errors = 0;
 
@@ -540,24 +564,22 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT=1, debug=
                 end
 
                 if (errors == 0)
-                    printf(' passed!\n')
+                    disp('...passed!')
                 else
                     if (KKT == 3) && (errors == 1) 
-                        printf(' uh oh, only one set of check failed!\n')
+                        disp('...uh oh, only one set of check failed!')
                     else
-                        printf(' checks failed!\n')
+                        disp('...checks failed!')
                     end
 
-                    if debug
-                        w = ws(:,t)'
-                        all_w = ws'
-                        cond(covar)
-                        exit(1)
-                    end
+                    w = ws(:,t)'
+                    all_w = ws'
+                    cond(covar)
+                    exit(1)
                 end
             end
         else
-            % if i_ins and i_outs are NA then we're done
+            % if i_ins and i_outs are NaN then we're done
             break
         end
     end
@@ -585,4 +607,7 @@ covar = [
 %    0.50000   0.50000   0.00000
 %    0.50000   0.18750   0.31250
 
-ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D)'
+source('../octcla.m')
+tic
+sols = calculate_turningpoints_gen(mu, covar, lb, ub, S, D)'
+toc
