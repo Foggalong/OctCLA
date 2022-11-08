@@ -10,7 +10,7 @@ disp("FINANCE CODE DEMO")
 addpath(genpath("finance/"))
 
 % read data from input file into variables
-data = csvread("demo/input.csv");
+data = csvread("demos/input.csv");
 mu = data(2,:)';
 lb = data(3,:)';
 ub = data(4,:)';
@@ -22,10 +22,10 @@ sols = calculate_turningpoints(mu, covar, lb, ub, 3)';
 toc
 
 % write output to file for reference
-csvwrite("demo/output.csv", sols)
+csvwrite("demos/output.csv", sols)
 
 % read truth into matrix
-truth = csvread("demo/truth.csv");
+truth = csvread("demos/truth.csv");
 
 % check if any entry in absolute error matrix greater than tolerance
 tol = 1e-10;
