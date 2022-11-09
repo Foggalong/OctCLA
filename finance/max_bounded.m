@@ -2,7 +2,7 @@
 % under the MIT License. See: https://github.com/Foggalong/OctCLA
 
 function [x_max, i_max] = max_bounded(x, x_bound, tol)
-    % MAX_BOUNDED return highest value and index less than abound
+    % MAX_BOUNDED return highest value and index less than a bound
     %
     % Takes a vector x and a number x_bound as inputs and then returns
     % the value x_max and index i_max of the highest value in vector x 
