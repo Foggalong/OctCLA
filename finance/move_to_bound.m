@@ -27,41 +27,38 @@ function [ins, lam_ins, b_ins, d] = move_to_bound(mu, covar, invcovarF, lb, ub, 
         return
     end
 
-    b   = zeros(length(mu), 1);  % b vector
-    lam = zeros(length(mu), 1);  % lambda vector
+    b   = zeros(length(mu), 1);  % b_i = bound asset i moving toward
+    lam = zeros(length(mu), 1);  % lam_i = lambda if i is at its bound
 
-    muF          = mu(F);
-    invcovarFmuF = invcovarF*muF;
+    invcovarFmuF = invcovarF*mu(F);
     covarFB      = covar(F,B);
 
-    % calculate derivative, using shortcuts
-    C = -sum(sum(invcovarF))*(invcovarFmuF) + sum(invcovarFmuF)*sum(invcovarF,2);
+    % calculate proxy derivative using shortcut variables
+    C = -sum(sum(invcovarF)) * invcovarFmuF + sum(invcovarFmuF) * sum(invcovarF,2);
 
-    % precalculate lam_p1 if it will be needed
+    % calcaulate lam_p1, with additional factor if B non-empty
+    lam_p1 = sum(invcovarF, 2);
     if ~isempty(B)
-        lam_p1 = (1-sum(w(B))+sum(invcovarF)*(covarFB*w(B)))*sum(invcovarF,2);
-    else
-        lam_p1 = sum(invcovarF, 2);
+        lam_p1 = (1-sum(w(B))+sum(invcovarF)*(covarFB*w(B))) * lam_p1;
     end
 
     for j = 1:length(F)
-        % need to index outer matrix, as per NOTE A1
-        i = F(j);
+        i = F(j); % index in outer matrix, as per NOTE A1
         if C(j) > 0
             b(i) = ub(i);
         elseif C(j) < 0
             b(i) = lb(i);
-        else  % C(j) == 0
-            % since |F| > 1, C(j) == 0 iff all mu(i) equal
-            continue  % TODO check how properly to handle this
+        else % since |F| > 1, C(j) == 0 iff all mu(i) equal
+            continue  
         end
 
-        % calculate lambda using shortcuts  % TODO tidy this up some
+        % calculate lambda using shortcuts
+        lami_p2 = sum(sum(invcovarF));
         if isempty(B)
-            lami_p2 = sum(sum(invcovarF))*b(i);
+            lami_p2 = lami_p2 * b(i);
         else
             invcovarFcovarFBwB = invcovarF*(covarFB*w(B));
-            lami_p2 = sum(sum(invcovarF))*(b(i)+invcovarFcovarFBwB(j));
+            lami_p2 = lami_p2 * (b(i) + invcovarFcovarFBwB(j));
         end
 
         lam(i) = (lam_p1(j)-lami_p2)/C(j);

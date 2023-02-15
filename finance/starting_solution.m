@@ -18,7 +18,9 @@ function [F, B, w] = starting_solution(mu, lb, ub)
     mu_max = inf;
     % increase assest weights in descending order of expected return
     while sum(w) < 1
+        % move to the next highest mu(i) after mu_max
         [mu_max, i] = max_bounded(mu, mu_max);
+        % set to maximum or use remaining capacity, whichever's lower
         w(i) = min(ub(i), lb(i)+1-sum(w));
     end
     % only one asset starts free
