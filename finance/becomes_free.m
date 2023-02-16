@@ -27,7 +27,7 @@ function [outs, lam_outs, d] = becomes_free(mu, covar, invcovarF, lb, ub, F, B, 
         return
     end
 
-    lam = zeros(length(mu), 1);  % lambda vector
+    lam = zeros(length(mu), 1);  % lam_i = lambda if i becomes free
     % only need D if running the full KKT check
     if (KKT == 1) || (KKT == 3)
         % matrix of potential d vectors
@@ -35,17 +35,15 @@ function [outs, lam_outs, d] = becomes_free(mu, covar, invcovarF, lb, ub, F, B, 
     end
 
     for i = B
-        % update the inverse
-        a = covar(F, i);
-        alpha = covar(i, i);
-        invcovarFi = inverse_grow(invcovarF, a, alpha);
+        % update the inverse to reflect additional row and column
+        invcovarFi = inverse_grow(invcovarF, covar(F,i), covar(i,i));
         % free weight i
         Fi = [F, i];     % F = Fu{i}
         Bi = B(B ~= i);  % B = B\{i}
         % need to index outer matrix, as per NOTE A1
-        j = length(Fi);  % Fi[j] = i; i last element in Fi by construction
+        j = length(Fi);  % Fi[j] = i; i last element in Fi by above
 
-        % calculate derivative  % TODO find a way to make this somewhat nicer
+        % calculate derivative  % TODO tidy this up
         Ci1 = -sum(sum(invcovarFi))*(invcovarFi*mu(Fi));
         Ci2 = (sum(invcovarFi)*mu(Fi))*sum(invcovarFi, 2);
         Ci = Ci1 + Ci2;
@@ -57,16 +55,16 @@ function [outs, lam_outs, d] = becomes_free(mu, covar, invcovarF, lb, ub, F, B, 
                 if Ci(l) > 0; possible_d(k, i) = ub(l); end
                 if Ci(l) < 0; possible_d(k, i) = lb(l); end
             end
-            possible_d(Bi, i) = w(Bi);  % TODO factor this into a KKT if statement
+            possible_d(Bi, i) = w(Bi);
         end
 
         % handle case in NOTE A2
+        lami_p1 = sum(invcovarFi(j,:), 2);
         if isempty(Bi)
-            lami_p1 = sum(invcovarFi(j,:), 2);
             lami_p2 = sum(sum(invcovarFi))*w(i);
         else
             % calculate lambda using shortcuts  % TODO tidy this up
-            lami_p1 = (1-sum(w(Bi))+sum(invcovarFi)*(covar(Fi,Bi)*w(Bi)))*sum(invcovarFi(j,:),2);
+            lami_p1 = (1-sum(w(Bi))+sum(invcovarFi)*(covar(Fi,Bi)*w(Bi))) * lami_p1;
             lami_p2_q2 = invcovarFi*(covar(Fi,Bi)*w(Bi));
             lami_p2 = sum(sum(invcovarFi))*(w(i)+lami_p2_q2(j));
         end
