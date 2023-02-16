@@ -43,16 +43,15 @@ function ws = calculate_turningpoints(mu, covar, lb, ub, KKT)
             % make lam = 0 the last iteration
             if lam_current < 0; lam_current = 0; end
 
-            % add an additional column to ws for the new asset weights
+            % add an additional column for the next turning point
             ws = [ws, zeros(length(mu),1)];
             ws(B, t+1) = ws(B, t);
             t = t+1;
 
-            % update gamma  % TODO make this neater
-            if isempty(B)
-                gam_top = -lam_current*sum(invcovarF)*mu(F) + 1;
-            else
-                gam_top = -lam_current*sum(invcovarF)*mu(F) + 1 - sum(ws(B,t)) + sum(invcovarF)*(covar(F,B)*ws(B,t));
+            % use this lambda to update gamma
+            gam_top = 1 - lam_current*sum(invcovarF)*mu(F);
+            if ~isempty(B)
+                gam_top = gam_top - sum(ws(B,t)) + sum(invcovarF)*(covar(F,B)*ws(B,t));
             end
             gam = gam_top/sum(sum(invcovarF));
 
@@ -75,7 +74,8 @@ function ws = calculate_turningpoints(mu, covar, lb, ub, KKT)
                 % bound weight i_ins
                 F = F(F ~= i_ins);  % F = F\{i}
                 B = [B, i_ins];     % B = Bu{i}
-                ws(i_ins, t) = b;   % w_i_inside^(t) = b  % TODO is this needed?
+                % TODO is this needed?
+                ws(i_ins, t) = b;   % w_i_inside^(t) = b
                 % only need to update d if doing full KKT check
                 if (KKT == 1) || (KKT == 3); d = d_ins; end
             else
@@ -125,6 +125,7 @@ function ws = calculate_turningpoints(mu, covar, lb, ub, KKT)
             break
         end
     end
-    % only return w2, w3, etc since w0 and w1 coincide  % TODO work out why
+    % only return w2, w3, etc since w0 and w1 coincide
+    % TODO work out if this can be avoided
     ws = ws(:, 2:end)';
 end
