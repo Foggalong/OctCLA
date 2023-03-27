@@ -28,7 +28,7 @@ function [ins, lam_ins, gam_ins, del_ins, b_ins, d] = move_to_bound_gen(mu, cova
     end
 
     % pre-allocate storage vectors
-    b   = zeros(length(mu), 1);  % holds which bounds being moved towards
+    b   = zeros(length(mu), 1);  % bounds being moved towards
     lam = zeros(length(mu), 1);  % holds potential lambda values
     gam = zeros(length(mu), 1);  % gamma vector
     del = zeros(length(mu), 1);  % delta vector
@@ -70,7 +70,7 @@ function [ins, lam_ins, gam_ins, del_ins, b_ins, d] = move_to_bound_gen(mu, cova
     if isnan(ins)
         % other variables set to NaN/inf by max_bounded
         b_ins = NaN; gam_ins = NaN; del_ins = NaN;
-    elseif ((length(F_D) == 1) && (ismember(ins, D)))
+    elseif (length(F_D) == 1) && (ismember(ins, D))
         % can't move sole free dam to bound
         ins = NaN; b_ins = NaN; gam_ins = NaN; del_ins = NaN; d = NaN; lam_ins = -inf;
     elseif (length(F_S) == 1) && (ismember(ins, S))

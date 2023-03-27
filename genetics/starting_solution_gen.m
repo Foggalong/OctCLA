@@ -2,14 +2,14 @@
 % under the MIT License. See: https://github.com/Foggalong/OctCLA
 
 function [F, B, w] = starting_solution_gen(mu, lb, ub, S, D, tol)
-    % STARTING_SOLUTION_GEN return starting solution for CLA genetics problems
+    % STARTING_SOLUTION_GEN return starting solution for genetics CLA 
     %
-    % Takes a vector of expected returns (mu), a vector of lower bounds on assest
-    % weights (lb), a vector of upper bounds on asset weights (ub), an index set
-    % for sires (S), and an index set for dams (D) as input, then returns the
-    % starting solution for CLA in the form of an index list of (F)ree and
-    % (B)ounded assests and starting weight vector (w). Also takes an optional
-    % argument for controlling the tolerance for comparisons (tol).
+    % Takes a vector of expected returns (mu), a vector of lower
+    % bounds on assest weights (lb), a vector of upper bounds on
+    % asset weights (ub), an index set for sires (S), and an index
+    % set for dams (D) as input, then returns the starting solution
+    % for CLA in the form of an index list of (F)ree and (B)ounded
+    % assests and starting weight vector (w).
     %
     % See also, STARTING_SOLUTION, CALCULATE_TURNINGPOINTS_GEN
 
@@ -19,7 +19,7 @@ function [F, B, w] = starting_solution_gen(mu, lb, ub, S, D, tol)
     % start with all assets on their lower bound
     w = lb;
 
-    % setting condition to inf ensures 1st value satisfies mi(i) < mu_max
+    % starting with inf ensures first value satisfies mi(i) < mu_max
     mu_max = inf;
     % increase sire weights in descending order of expected return
     while (abs(sum(w(S)) - 0.5) > tol)
@@ -30,7 +30,7 @@ function [F, B, w] = starting_solution_gen(mu, lb, ub, S, D, tol)
     F = [i];
     B = S(S ~= i);
 
-    % setting condition to inf ensures 1st value satisfies mi(i) < mu_max
+    % startting with inf ensures first value satisfies mi(i) < mu_max
     mu_max = inf;
     % increase dam weights in descending order of expected return
     while (abs(sum(w(D)) - 0.5) > tol)

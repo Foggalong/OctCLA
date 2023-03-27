@@ -35,20 +35,16 @@ function [outs, lam_outs, gam_outs, del_outs d] = becomes_free_gen(mu, covar, in
     end
 
     for i = B
-        % update the inverse
-        a = covar(F, i);  % BUG another duplicated variable name
-        alpha = covar(i, i);
-        invcovarFi = inverse_grow(invcovarF, a, alpha);
+        % update the inverse to reflect additional row and column
+        invcovarFi = inverse_grow(invcovarF, covar(F,i), covar(i,i));
         % free weight i
         Fi = [F, i];     % F = Fu{i}
         Bi = B(B ~= i);  % B = B\{i}
-        % don't need to update S/D, constant between iterations
-
+        % need to index outer matrix, as per NOTE A1
+        j = length(Fi);   % Fi[j] = i; i last element in Fi by above
         % additional shortcuts needed just in genetics version
         covarFiBi = covar(Fi,Bi);
-
-        % need to index outer matrix, as per NOTE A1
-        j = length(Fi);  % Fi[j] = i; i last element in Fi by construction
+        % don't need to update S or D, constant between iterations
 
         % calculate derivative and multiplier updates using function
         % BUG this is calculating MANY unneeded values just to get the ith
@@ -56,6 +52,7 @@ function [outs, lam_outs, gam_outs, del_outs d] = becomes_free_gen(mu, covar, in
         lam(i) = lam_vec(j);
         del(i) = del_vec(j);
         gam(i) = gam_vec(j);
+
         % if running full KKT check, save d vector
         if (KKT == 1) || (KKT == 3)
             for l = 1:length(Fi)
