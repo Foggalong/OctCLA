@@ -23,14 +23,20 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
     % set default value for tolerance
     if (nargin < 13); tol = 1e-10; end  % TODO check this is sensible
 
-    % want D and S to be indexes in free assets, not indexes in all the assets
+    % want D and S to be indexes in free assets, not in all the assets
     F_D = subindex(D, F);
     F_S = subindex(S, F);
 
+    % column sums of the four quadrants of invcovarF
+    eF_DinvcovarF_DD = sum(invcovarF(F_D,F_D), 1);
+    eF_DinvcovarF_DS = sum(invcovarF(F_D,F_S), 1);
+    eF_SinvcovarF_SD = sum(invcovarF(F_S,F_D), 1);
+    eF_SinvcovarF_SS = sum(invcovarF(F_S,F_S), 1);
+
     % matrix entries on the LHS of the multipler linear system
-    a = sum(sum(invcovarF(F_D,F_S)));
-    b = sum(sum(invcovarF(F_D,F_D)));
-    c = sum(sum(invcovarF(F_S,F_S)));
+    a = sum(eF_DinvcovarF_DS);
+    b = sum(eF_DinvcovarF_DD);
+    c = sum(eF_SinvcovarF_SS);
     % d = a, so doesn't need repeating
 
     % determinant of the multiplier linear system
@@ -41,17 +47,12 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
         disp("ERROR! Linear system has no solutions")
     end
 
-    % column sums of the four quadrants of invcovarF
-    eF_DinvcovarF_DD = sum(invcovarF(F_D, F_D), 1);
-    eF_DinvcovarF_DS = sum(invcovarF(F_D, F_S), 1);
-    eF_SinvcovarF_SD = sum(invcovarF(F_S, F_D), 1);
-    eF_SinvcovarF_SS = sum(invcovarF(F_S, F_S), 1);
 
     % TODO refactor to involve code duplication
     % components of x & y are reused elsewhere so split up
     x_p1 = 0.5;
     y_p1 = 0.5;
-    % if B empty we get massive cancellations, so only consider non-empty case
+    % if B empty we get cancellations, so only consider non-empty case
     if ~isempty(B)
         % for x & y also need sub-indexed wB
         B_D = subindex(D, B);
@@ -80,7 +81,6 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
 
     % final multiplier update is much simpler
     if (lam_current == 0)
-        % already know determ
         gam = (a*x_p1 - b*y_p1)/determinant;
         del = (a*y_p1 - c*x_p1)/determinant;
         lambda = 0;
@@ -92,28 +92,26 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
     dGam_dLam = (b*y_p2 - a*x_p2)/determinant;
     dDel_dLam = (c*x_p2 - a*y_p2)/determinant;
 
-    % entry i of C gives whether free asset i is moving toward its upper or lower bound
+    % C(i) indicates if asset i is moving to its upper or lower bound
     C = invcovarF * ([repmat(dGam_dLam, size(F_S)), repmat(dDel_dLam, size(F_D))] + muF);
 
-    % lambda update equation is separated into chunks for readability. the first
-    % of these chunks is determined by whether we're considering assets becoming free
-    % or moving to a bound.
+    % lambda update equation is separated into chunks for readability.
+    % the first of these chunks is determined by whether we're considering
+    % assets becoming free or moving to a bound.
 
     if m2b
-        bound = zeros(length(w), 1);  % b vector
+        % <compute vector of which bound each asset is moving towards>
+        bound = zeros(length(w), 1);
 
         % in move_to_bound, so b(i) determined based on derivative
         for j = 1:length(F)
-            % need to index outer matrix, as per NOTE A1
-            i = F(j);
+            i = F(j);  % need to index outer matrix, as per NOTE A1
             if C(j) > 0
-                % asset moving towards its upper bound
                 bound(i) = ub(i);
             elseif C(j) < 0
                 bound(i) = lb(i);
             else  % C(j) == 0
-                % since more than one free variable, C(j) == 0 iff all mu(i) equal
-                continue
+                continue % since |F| > 1, C(j) == 0 iff all mu(i) equal
             end
         end
         % precalculate lam_num_p1
@@ -141,7 +139,7 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
     x = x_p1 - lambda*x_p2;
     y = y_p1 - lambda*y_p2;
 
-    % update multipliers by direct calculateion of linear system solutions
+    % update multipliers by direct calculateion of system solutions
     gam = (a*x - b*y)/determinant;
     del = (a*y - c*x)/determinant;
 
