@@ -33,7 +33,6 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT)
 
     while true
         % case a where a free asset moves to its bound
-        % DEBUG - uncomment once done 
         [i_ins, lam_ins, gam_ins, del_ins, b, d_ins] = move_to_bound_gen(mu, covar, invcovarF, lb, ub, F, B, S, D, lam_current, ws(:,t), KKT);
         % case b where an asset on its bound becomes free
         [i_outs, lam_outs, gam_outs, del_outs, d_outs] = becomes_free_gen(mu, covar, invcovarF, mu(F), lb, ub, F, B, S, D, lam_current, ws(:,t), KKT);
@@ -41,22 +40,21 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT)
         if (i_ins ~= NaN || i_outs ~= NaN)
             lam_current = max(lam_ins, lam_outs);
 
-            % if lam < 0 the risk is increasing again, make lam = 0 the last iteration
+            % if lam < 0 the risk is increasing again
             if lam_current < 0;
+                % make lam = 0 the last iteration
                 lam_current = 0;
-                % since value of lambda change need to recalculate gamma and delta
+                % since lambda changed, recalculate gamma and delta
                 [gam, del, C_null, lam_null] = multiplier_update(F, B, S, D, ws(F,t), invcovarF, covar(F,B), mu(F), lam_current, lb, ub, false);
-                % NOTE don't actually need C or lambda; which makes choice of m2b redudent
+                % don't need C or lambda, so choice of m2b redudent
             else
-                % need to know which lambda won
-                if lam_current == lam_ins  % can do without tol comparison since come from max
+                % can compare without tol since came from max
+                if lam_current == lam_ins
                     disp("Going inside")
-                    gam = gam_ins;
-                    del = del_ins;
+                    gam = gam_ins; del = del_ins;
                 else
                     disp("Going outside")
-                    gam = gam_outs;
-                    del = del_outs;
+                    gam = gam_outs; del = del_outs;
                 end
             end
 
@@ -74,7 +72,7 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT)
                 ws(F,t) = ws(F,t) - invcovarF*(covar(F,B)*ws(B,t));
             end
 
-            % if lambda = 0 then risk is increasing again, can terminate
+            % if lambda = 0, risk is increasing again: terminate
             if lam_current <= 0; break; end
 
             % update free and bounded asset index sets
@@ -103,32 +101,27 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT)
 
             % KKT CHECKS
             % NOTE doesn't check lam=0 soln since it's not (necessarily) a TP.
-
             if (KKT > 0)
                 disp('Checking KKT conditions...')
-                % ws'
                 errors = 0;
 
-                if (KKT == 1) || (KKT == 3)
-                    % TODO update once associated function is implemented
-                    % errors += ~kkt_full_gen(...);
+                if (KKT == 1) || (KKT == 3)  % TODO add args once done
+                    errors = errors + ~kkt_full_gen(lb, ub, d, ws(:,t), covar, lam_current, mu, gam, del, S, D);
                 end
 
-                if (KKT == 2) || (KKT == 3)
-                    % TODO update once associated function is implemented
-                    % errors += ~kkt_equiv(...);
+                if (KKT == 2) || (KKT == 3)  % TODO add args once done
+                    errors = errors + ~kkt_partitioned_gen(covar, ws(:,t), lam_current, gam, del, mu, B, F, S, D);
                 end
 
                 if (errors == 0)
                     disp('...passed!')
                 else
                     if (KKT == 3) && (errors == 1) 
-                        disp('...uh oh, only one set of check failed!')
+                        disp('...uh oh, only one set failed!')
                     else
                         disp('...checks failed!')
                     end
 
-                    w = ws(:,t)'
                     all_w = ws'
                     cond(covar)
                     exit(1)
@@ -139,6 +132,6 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT)
             break
         end
     end
-    % only return w2, w3, etc since w0 and w1 coincide  % TODO work out why
-    ws = ws(:, 2:end)';
+    % only return w2, w3, etc since w0 and w1 coincide
+    ws = ws(:, 2:end)';  % TODO work out why
 end

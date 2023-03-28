@@ -108,12 +108,11 @@ function ws = calculate_turningpoints(mu, covar, lb, ub, KKT)
                     disp('...passed!')
                 else
                     if (KKT == 3) && (errors == 1) 
-                        disp('...uh oh, only one set of check failed!')
+                        disp('...uh oh, only one set failed!')
                     else
                         disp('...checks failed!')
                     end
 
-                    w = ws(:,t)'
                     all_w = ws'
                     cond(covar)
                     exit(1)
