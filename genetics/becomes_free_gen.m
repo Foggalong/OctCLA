@@ -64,8 +64,10 @@ function [outs, lam_outs, gam_outs, del_outs d] = becomes_free_gen(mu, covar, in
         end
     end
 
+    % BUG was previously using the *_bounded version (in error?)
+    % [lam_outs, outs] = max_bounded(lam, lam_current);
     % check whether found new turning point
-    [lam_outs, outs] = max_bounded(lam, lam_current);
+    [lam_outs, outs] = max_conditional(lam, lam_current, B);
 
     % need to check rather than assume or will get an index error
     if (outs ~= NaN)
