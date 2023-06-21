@@ -70,16 +70,16 @@ function [outs, lam_outs, gam_outs, del_outs d] = becomes_free_gen(mu, covar, in
     [lam_outs, outs] = max_conditional(lam, lam_current, B);
 
     % need to check rather than assume or will get an index error
-    if (outs ~= NaN)
+    if isnan(outs)
+        gam_outs = NaN; del_outs = NaN;
+    else
         % select correponding gamma and delta multipliers
         gam_outs = gam(outs);
         del_outs = del(outs);
-    else
-        gam_outs = NaN; del_outs = NaN;
     end
 
     % only have d if outs defined and doing full KKT check
-    if (outs == NaN) || (KKT == 0) || (KKT == 2)  
+    if isnan(outs) || (KKT == 0) || (KKT == 2)  
         d = NaN;
     else
         d = possible_d(:, outs);
