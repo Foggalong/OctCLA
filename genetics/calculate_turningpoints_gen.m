@@ -50,11 +50,9 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT)
             else
                 % can compare without tol since came from max
                 if lam_current == lam_ins
-                    disp("Going inside")
-                    gam = gam_ins; del = del_ins;
+                    gam = gam_ins; del = del_ins;    % disp("Going inside")
                 else
-                    disp("Going outside")
-                    gam = gam_outs; del = del_outs;
+                    gam = gam_outs; del = del_outs;  % disp("Going outside")
                 end
             end
 
@@ -105,11 +103,11 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT)
                 disp('Checking KKT conditions...')
                 errors = 0;
 
-                if (KKT == 1) || (KKT == 3)  % TODO add args once done
+                if (KKT == 1) || (KKT == 3)
                     errors = errors + ~kkt_full_gen(lb, ub, d, ws(:,t), covar, lam_current, mu, gam, del, S, D);
                 end
 
-                if (KKT == 2) || (KKT == 3)  % TODO add args once done
+                if (KKT == 2) || (KKT == 3)
                     errors = errors + ~kkt_partitioned_gen(covar, ws(:,t), lam_current, gam, del, mu, B, F, S, D);
                 end
 
