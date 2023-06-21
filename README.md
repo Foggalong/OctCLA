@@ -18,7 +18,7 @@ An overview of the functions involved can be found in [`finance/`](finance/).
 
 The genetics codebase explores the related portfolio optimization problem
 
-$$\min w^T\mu,\ \max w^T\Sigma w\ \text{ subject to }\ w\geq0,\ w^T_{\mathcal{S}}e_{\mathcal{S}}^{\phantom{T}} = \frac{1}{2}, w^T_{\mathcal{D}}e_{\mathcal{D}}^{\phantom{T}} = \frac{1}{2},\ l\leq w\leq u,$$
+$$\min w^T\mu,\ \max w^T\Sigma w\ \text{ subject to }\ w\geq0,\ w^T_{\mathcal{S}}e_{\mathcal{S}}^{} = \frac{1}{2}, w^T_{\mathcal{D}}e_{\mathcal{D}}^{} = \frac{1}{2},\ l\leq w\leq u,$$
 
 where $\mathcal{S}$ and $\mathcal{D}$ are two index sets which partition the complete set of asset indices.
 
