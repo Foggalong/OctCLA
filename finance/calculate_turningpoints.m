@@ -37,7 +37,7 @@ function ws = calculate_turningpoints(mu, covar, lb, ub, KKT)
         % case b where an asset on its bound becomes free
         [i_outs, lam_outs, d_outs] = becomes_free(mu, covar, invcovarF, lb, ub, F, B, lam_current, ws(:,t), KKT);
 
-        if (i_ins ~= NaN || i_outs ~= NaN)
+        if (~isnan(i_ins) || ~isnan(i_outs))
             lam_current = max(lam_ins, lam_outs);
             % if lam < 0 the risk is increasing again
             % make lam = 0 the last iteration
