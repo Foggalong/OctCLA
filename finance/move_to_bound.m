@@ -23,6 +23,7 @@ function [ins, lam_ins, b_ins, d] = move_to_bound(mu, covar, invcovarF, lb, ub, 
 
     % a sole free asset cannot move to bound
     if length(F) == 1
+        printf("MB: F is singleton\n")
         ins = NaN; b_ins = NaN; d = NaN; lam_ins = -inf;
         return
     end
@@ -39,6 +40,7 @@ function [ins, lam_ins, b_ins, d] = move_to_bound(mu, covar, invcovarF, lb, ub, 
     % calcaulate lam_p1, with additional factor if B non-empty
     lam_p1 = sum(invcovarF, 2);
     if ~isempty(B)
+        printf("MB: B is not empty\n")
         lam_p1 = (1-sum(w(B))+sum(invcovarF)*(covarFB*w(B))) * lam_p1;
     end
 
@@ -55,8 +57,10 @@ function [ins, lam_ins, b_ins, d] = move_to_bound(mu, covar, invcovarF, lb, ub, 
         % calculate lambda using shortcuts
         lami_p2 = sum(sum(invcovarF));
         if isempty(B)
+            printf("MB: B is empty\n")
             lami_p2 = lami_p2 * b(i);
         else
+            printf("MB: B is not empty\n")
             invcovarFcovarFBwB = invcovarF*(covarFB*w(B));
             lami_p2 = lami_p2 * (b(i) + invcovarFcovarFBwB(j));
         end

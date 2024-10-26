@@ -43,18 +43,20 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT)
 
             % if lam < 0 the risk is increasing again, make lam = 0 the last iteration
             if lam_current < 0;
+                printf("CT: lambda negative\n")
                 lam_current = 0;
                 % since value of lambda change need to recalculate gamma and delta
                 [gam, del, C_null, lam_null] = multiplier_update(F, B, S, D, ws(F,t), invcovarF, covar(F,B), mu(F), lam_current, lb, ub, false);
                 % NOTE don't actually need C or lambda; which makes choice of m2b redudent
             else
+                printf("CT: lambda positive\n")
                 % need to know which lambda won
                 if lam_current == lam_ins  % can do without tol comparison since come from max
-                    disp("Going inside")
+                    disp("CT: Going inside")
                     gam = gam_ins;
                     del = del_ins;
                 else
-                    disp("Going outside")
+                    disp("CT: Going outside")
                     gam = gam_outs;
                     del = del_outs;
                 end
@@ -71,7 +73,10 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT)
             ws(F,t) = lam_current*(invcovarF*mu(F)) + [gam*sum(invcovarF(F_S,F_S), 2)', del*sum(invcovarF(F_D,F_D), 2)']';
             % have an extra term unless b is empty
             if ~isempty(B)
+                printf("CT: B is not empty\n")
                 ws(F,t) = ws(F,t) - invcovarF*(covar(F,B)*ws(B,t));
+            else
+                printf("CT: B is empty\n")
             end
 
             % if lambda = 0 then risk is increasing again, can terminate
@@ -79,6 +84,7 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT)
 
             % update free and bounded asset index sets
             if (lam_ins > lam_outs)
+                printf("CT: lambda_ins chosen\n")
                 % update the inverse
                 % TODO could this find be replaced?
                 j = find(F==i_ins);  % need index in inverse, not full matrix
@@ -90,6 +96,7 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT)
                 % only need to update d if doing full KKT check
                 if (KKT == 1) || (KKT == 3); d = d_ins; end
             else
+                printf("CT: lambda_outs chosen\n")
                 % update the inverse
                 a = covar(F, i_outs);
                 alpha = covar(i_outs, i_outs);
@@ -109,14 +116,12 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT)
                 % ws'
                 errors = 0;
 
-                if (KKT == 1) || (KKT == 3)
-                    % TODO update once associated function is implemented
-                    % errors += ~kkt_full_gen(...);
+                if (KKT == 1) || (KKT == 3)  % TODO add args once done
+                    errors = errors + ~kkt_full_gen(lb, ub, d, ws(:,t), covar, lam_current, mu, gam, del, S, D);
                 end
 
-                if (KKT == 2) || (KKT == 3)
-                    % TODO update once associated function is implemented
-                    % errors += ~kkt_equiv(...);
+                if (KKT == 2) || (KKT == 3)  % TODO add args once done
+                    errors = errors + ~kkt_partitioned_gen(covar, ws(:,t), lam_current, gam, del, mu, B, F, S, D);
                 end
 
                 if (errors == 0)

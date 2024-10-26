@@ -23,9 +23,11 @@ function [ins, lam_ins, gam_ins, del_ins, b_ins, d] = move_to_bound_gen(mu, cova
     F_D = subindex(D, F);
     F_S = subindex(S, F);
     if (length(F_D) == 1) && (length(F_S) == 1)
+        printf("MB: F_D and F_S both singletons\n")
         ins = NaN; b_ins = NaN; gam_ins = NaN; del_ins = NaN; d = NaN; lam_ins = -inf;
         return
     end
+    printf("MB: F_D and F_S are not both singletons\n")
 
     % pre-allocate storage vectors
     b   = zeros(length(mu), 1);  % holds which bounds being moved towards

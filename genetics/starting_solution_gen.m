@@ -17,7 +17,7 @@ function [F, B, w] = starting_solution_gen(mu, lb, ub, S, D, tol)
     if (nargin < 6); tol = 1e-10; end  % TODO check this is sensible
 
     % start with all assets on their lower bound
-    w = lb;
+    w = lb
 
     % setting condition to inf ensures 1st value satisfies mi(i) < mu_max
     mu_max = inf;

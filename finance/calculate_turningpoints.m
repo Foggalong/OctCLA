@@ -41,7 +41,7 @@ function ws = calculate_turningpoints(mu, covar, lb, ub, KKT)
             lam_current = max(lam_ins, lam_outs);
             % if lam < 0 the risk is increasing again
             % make lam = 0 the last iteration
-            if lam_current < 0; lam_current = 0; end
+            if lam_current < 0; printf("CT: lam is zero\n"); lam_current = 0; end
 
             % add an additional column for the next turning point
             ws = [ws, zeros(length(mu),1)];
@@ -51,14 +51,17 @@ function ws = calculate_turningpoints(mu, covar, lb, ub, KKT)
             % use this lambda to update gamma
             gam_top = 1 - lam_current*sum(invcovarF)*mu(F);
             if ~isempty(B)
+                printf("CT_gamma: B is not empty\n")
                 gam_top = gam_top - sum(ws(B,t)) + sum(invcovarF)*(covar(F,B)*ws(B,t));
             end
             gam = gam_top/sum(sum(invcovarF));
 
             % update w_F^(t)  % TODO make this neater
             if isempty(B)
+                printf("CT_w: B is empty\n")
                 ws(F,t) = gam*sum(invcovarF,2) + lam_current*(invcovarF*mu(F));
             else
+                printf("CT_w: B is not empty\n")
                 ws(F,t) = -invcovarF*(covar(F,B)*ws(B,t)) + gam*sum(invcovarF,2) + lam_current*(invcovarF*mu(F));
             end
 
@@ -67,6 +70,7 @@ function ws = calculate_turningpoints(mu, covar, lb, ub, KKT)
 
             % update free and bounded asset index sets
             if (lam_ins > lam_outs)
+                printf("CT: lambda_ins chosen\n")
                 % update the inverse
                 % need index in inverse, not full matrix
                 j = find(F==i_ins);  % TODO could find be replaced?
@@ -79,6 +83,7 @@ function ws = calculate_turningpoints(mu, covar, lb, ub, KKT)
                 % only need to update d if doing full KKT check
                 if (KKT == 1) || (KKT == 3); d = d_ins; end
             else
+                printf("CT: lambda_outs chosen\n")
                 % update the inverse
                 a = covar(F, i_outs);
                 alpha = covar(i_outs, i_outs);
@@ -108,12 +113,11 @@ function ws = calculate_turningpoints(mu, covar, lb, ub, KKT)
                     disp('...passed!')
                 else
                     if (KKT == 3) && (errors == 1) 
-                        disp('...uh oh, only one set of check failed!')
+                        disp('...uh oh, only one set failed!')
                     else
                         disp('...checks failed!')
                     end
 
-                    w = ws(:,t)'
                     all_w = ws'
                     cond(covar)
                     exit(1)

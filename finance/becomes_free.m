@@ -23,6 +23,7 @@ function [outs, lam_outs, d] = becomes_free(mu, covar, invcovarF, lb, ub, F, B, 
 
     % skip proceedure if all assets are free
     if (length(F) == length(mu))
+        printf("BF: F is full!\n")
         outs = NaN; d = NaN; lam_outs = -inf;
         return
     end
@@ -61,8 +62,10 @@ function [outs, lam_outs, d] = becomes_free(mu, covar, invcovarF, lb, ub, F, B, 
         % handle case in NOTE A2
         lami_p1 = sum(invcovarFi(j,:), 2);
         if isempty(Bi)
+            printf("BF: Bi is empty\n")
             lami_p2 = sum(sum(invcovarFi))*w(i);
         else
+            printf("BF: Bi is not empty\n")
             % calculate lambda using shortcuts  % TODO tidy this up
             lami_p1 = (1-sum(w(Bi))+sum(invcovarFi)*(covar(Fi,Bi)*w(Bi))) * lami_p1;
             lami_p2_q2 = invcovarFi*(covar(Fi,Bi)*w(Bi));

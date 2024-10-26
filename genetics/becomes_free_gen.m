@@ -21,9 +21,11 @@ function [outs, lam_outs, gam_outs, del_outs d] = becomes_free_gen(mu, covar, in
 
     % skip proceedure if all assets are free
     if (length(F) == length(mu))
+        printf("BF: B is empty\n")
         outs = NaN; gam_outs = NaN; del_outs = NaN; d = NaN; lam_outs = -inf;
         return
     end
+    printf("BF: B is not empty\n")
 
     lam = zeros(length(mu), 1);  % lambda vector
     gam = zeros(length(mu), 1);  % gamma vector

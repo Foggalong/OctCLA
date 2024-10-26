@@ -61,25 +61,30 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
         wB_D = wB(B_D);
         % first part of x and y when B non-empty
         if isempty(B_D)
+            printf("MU: B_D is empty, B_S is non-empty\n")
             % cancellations if no bounded dams
             x_p1 = x_p1 + eF_DinvcovarF_DD*(covarFB(F_D, B_S)*wB_S);
             y_p1 = y_p1 - sum(wB_S, 1) + eF_SinvcovarF_SS*(covarFB(F_S, B_S)*wB_S);
         elseif isempty(B_S)
+            printf("MU: B_S is empty, B_D is non-empty\n")
             % cancellations if no bounded sires
             x_p1 = x_p1 - sum(wB_D, 1) + eF_DinvcovarF_DD*(covarFB(F_D, B_D)*wB_D);
             y_p1 = y_p1 + eF_SinvcovarF_SS*(covarFB(F_S, B_D)*wB_D);
         else
+            printf("MU: B is non-empty\n")
             % no cancellations if we've bounded dams and sires
             x_p1 = x_p1 - sum(wB_D, 1) + eF_DinvcovarF_DD*(covarFB(F_D, B_S)*wB_S) + eF_DinvcovarF_DD*(covarFB(F_D, B_D)*wB_D);
             y_p1 = y_p1 - sum(wB_S, 1) + eF_SinvcovarF_SS*(covarFB(F_S, B_S)*wB_S) + eF_SinvcovarF_SS*(covarFB(F_S, B_D)*wB_D);
         end
     end
+    printf("MU: B is empty\n")
 
     x_p2 = eF_DinvcovarF_DS*muF(F_S) + eF_DinvcovarF_DD*muF(F_D);
     y_p2 = eF_SinvcovarF_SS*muF(F_S) + eF_SinvcovarF_SD*muF(F_D);
 
     % final multiplier update is much simpler
     if (lam_current == 0)
+        printf("MU: lambda is zero\n")
         % already know determ
         gam = (a*x_p1 - b*y_p1)/determinant;
         del = (a*y_p1 - c*x_p1)/determinant;
@@ -87,6 +92,7 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
         C = NaN;  % not needed
         return
     end
+    printf("MU: lambda is non-zero\n")
 
     % derivatives of previous multipliers with respect to lambda
     dGam_dLam = (b*y_p2 - a*x_p2)/determinant;
@@ -118,15 +124,19 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
         end
         % precalculate lam_num_p1
         if isempty(B)
+            printf("MU: MB: B is empty\n")
             lam_num_p1 = determinant*bound(F);
         else
+            printf("MU: MB: B is non-empty\n")
             lam_num_p1 = determinant*(bound(F) + invcovarF*covarFB*w(B));
         end
     else
         % in becomes_free, so b(i) = w(i)
         if isempty(B)
+            printf("MU: BF: B is empty\n")
             lam_num_p1 = determinant*w(F);
         else
+            printf("MU: BF: B is non-empty\n")
             lam_num_p1 = determinant*(w(F) + invcovarF*covarFB*w(B));
         end
     end
