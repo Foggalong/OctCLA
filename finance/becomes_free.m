@@ -76,7 +76,7 @@ function [outs, lam_outs, d] = becomes_free(mu, covar, invcovarF, lb, ub, F, B, 
     [lam_outs, outs] = max_bounded(lam, lam_current);
 
     % only have d if outs defined and doing full KKT check
-    if (outs == NaN) || (KKT == 0) || (KKT == 2)  
+    if isnan(outs) || (KKT == 0) || (KKT == 2)  
         d = NaN;
     else
         d = possible_d(:, outs);
