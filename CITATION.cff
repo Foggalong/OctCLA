@@ -1,0 +1,30 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: OctCLA
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Josh
+    family-names: Fogg
+    email: j.fogg@ed.ac.uk
+    affiliation: University of Edinburgh
+    orcid: 'https://orcid.org/0009-0008-0088-2759'
+repository-code: 'https://github.com/Foggalong/OctCLA'
+abstract: >-
+  GNU Octave implementations of Markowitz' Critical Line
+  Algorithm (CLA) for exploring portfolio optimization
+  problems and a similar CLA-like algorithm for exploring
+  optimal contribution selection problems.
+keywords:
+  - portfolio optimization
+  - portfolio selection
+  - genomic selection
+  - selective breeding
+license: MIT
+commit: bc9913d
+version: v0.5
+date-released: '2023-02-15'

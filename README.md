@@ -32,7 +32,7 @@ While some of the required functions are reused from [`finance/`](finance/), man
 
 ## References
 
-This code was written as an integral part of Josh Fogg's thesis, _New Frontiers for CLA_, submitted to the University of Edinburgh. Each implementation is woven into a didactic for deriving and implementing a CLA-like algorithm for the corresponding problem.
+This code was written as an integral part of Josh Fogg's thesis, _New Frontiers for CLA_, submitted to the University of Edinburgh. Each implementation is woven into a didactic for deriving and implementing a CLA-like algorithm for the corresponding problem. To cite the latest version, see the "Cite this repository" button in the GitHub sidebar.
 
 The following works were instrumental when creating this implementation.
 
