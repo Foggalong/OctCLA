@@ -1,24 +1,29 @@
 % This file is part of OctCLA, Copyright (c) 2022 Josh Fogg, released
 % under the MIT License. See: https://github.com/Foggalong/OctCLA
 
-function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, covarFB, muF, lam_current, lb, ub, m2b, tol)
-    % MULTIPLIER_UPDATE handle the updating of lagrangian multipliers
-    % 
-    % TODO Write a proper function description.
-    % TODO find a way to make ub and lb non-essential
+function [gam, del, C, lambda, bound] = multiplier_update(F, B, S, D, w, invcovarF, covarFB, muF, lam_current, lb, ub, m2b, tol)
+    % MULTIPLIER_UPDATE handle the updating of Lagrangian multipliers
     %
-    % NOTE This started mostly me just working through the full set of multiplier
-    % update equations. I underestimated just how complicated they would be to
-    % implement, even with just that one extra constraint, so was trying to get
-    % to grips with how they would link into each other in code. It turned out
-    % actually to be useful/integral to write code which didn't include lots of
-    % duplication and/or inefficiently passing way too many variables around.
+    % To avoid passing multiple variables between other functions, given the
+    % more complicated update equations in the genetics context it turns out
+    % to update our multipliers through a single function. This avoids having
+    % lots of duplicate code split across multiple places, but comes at the
+    % cost of being longer than ideal.
+
+    % As input, it takes the index sets for the free (F) and bounded (B) assets,
+    % the index sets of sires (S) and dams (D), the current portfolio (w), the
+    % current `invcovarF`, `covarFB`, and `muF` (avoids duplicate calculation),
+    % the current value of lambda (lam_current), lower bound on weights (lb),
+    % and upper bound on weights (ub). The final mandatory argument `m2b' 
+    % determines which branch of the algorithm the function is being called in.
+    % If m2b = true, it's in move_to_bound, otherwise it's in becomes_free. This
+    % changes how the `bound` vector is calculated.
     %
-    % The `m2b' argument determines which branch of the algorithm the function
-    % is being called in. If m2b = true, it's in move_to_bound, otherwise it's
-    % in becomes_free. This changes how the b vector is calculated.
+    % As output, returns the updated gamma (gam), delta (del), derivative (C),
+    % `lambda`, and the bound each variable is moving towards (bound). These
+    % correspond to the updated multipliers for the given inputs.
     %
-    % See also, ???  % TODO lookup what MATLAB standard is when this is empty 
+    % See also, MOVE_TO_BOUND_GEN, BECOMES_FREE_GEN, CALCULATE_TURNINGPOINTS_GEN
 
     % set default value for tolerance
     if (nargin < 13); tol = 1e-10; end  % TODO check this is sensible
@@ -84,19 +89,21 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
         gam = (a*x_p1 - b*y_p1)/determinant;
         del = (a*y_p1 - c*x_p1)/determinant;
         lambda = 0;
-        C = NaN;  % not needed
+        % unneeded outputs in this case
+        C = NaN;
+        bound = NaN;
         return
     end
 
     % derivatives of previous multipliers with respect to lambda
     dGam_dLam = (a*x_p2 - b*y_p2)/determinant;
     dDel_dLam = (a*y_p2 - c*x_p2)/determinant;
-    % BUG this is what I wrote first, think it's the wrong way around
-    % dGam_dLam = (b*y_p2 - a*x_p2)/determinant
-    % dDel_dLam = (c*x_p2 - a*y_p2)/determinant
 
     % C(i) indicates if asset i is moving to its upper or lower bound
-    C = invcovarF * ([repmat(dGam_dLam, size(F_S)), repmat(dDel_dLam, size(F_D))]' + muF);
+    gam_del_derivatives = zeros(size(F))';
+    gam_del_derivatives(F_S) = dGam_dLam;
+    gam_del_derivatives(F_D) = dDel_dLam;
+    C = invcovarF * (gam_del_derivatives + muF);
 
     % lambda update equation is separated into chunks for readability.
     % the first of these chunks is determined by whether we're considering
@@ -109,9 +116,9 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
         % in move_to_bound, so b(i) determined based on derivative
         for j = 1:length(F)
             i = F(j);  % need to index outer matrix, as per NOTE A1
-            if C(j) < 0  % BUG originally >, think that was wrong
+            if C(j) < 0
                 bound(i) = ub(i);
-            elseif C(j) > 0  % BUG originally <, think that was wrong
+            elseif C(j) > 0
                 bound(i) = lb(i);
             else  % C(j) == 0
                 continue % since |F| > 1, C(j) == 0 iff all mu(i) equal
@@ -124,6 +131,7 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
             lam_num_p1 = determinant*(bound(F) + invcovarF*covarFB*w(B));
         end
     else
+        bound = NaN;
         % in becomes_free, so b(i) = w(i)
         if isempty(B)
             lam_num_p1 = determinant*w(F);
@@ -132,11 +140,11 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
         end
     end
 
-    % THIS IS BROKEN, NOT SURE WHY BUT DON'T USE IT -ed
-    % lam_num_p2 = [repmat(b*y_p1 - a*x_p1, size(F_S)), repmat(c*x_p1 - a*y_p1, size(F_D))]';
-    % lam_den_p1 = [repmat(b*y_p2 - a*x_p2, size(F_S)), repmat(c*x_p2 - a*y_p2, size(F_D))]';
+    % we might think to use `repmat` here ease, but any code like
+    %     [repmat(..., size(F_S)), repmat(..., size(F_D))]'
+    % will mean these lambda entry calculations become ordered into
+    % sires and dams, leading subsequent calculations to be wrong.
     
-    % DEBUG
     lam_num_p2 = zeros(size(F))';
     lam_num_p2(F_S) = b*y_p1 - a*x_p1;
     lam_num_p2(F_D) = c*x_p1 - a*y_p1;
@@ -147,8 +155,6 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
 
     lam_den_p2 = invcovarF*(lam_den_p1 + determinant*muF);
     lambda = (lam_num_p1 + invcovarF*lam_num_p2)./lam_den_p2;
-
-    % DEBUG = lambda
 
     % matrix entries on the RHS of the multipler linear system
     x = x_p1 - lambda*x_p2;

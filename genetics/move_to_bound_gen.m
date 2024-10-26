@@ -44,7 +44,7 @@ function [ins, lam_ins, gam_ins, del_ins, b_ins, d] = move_to_bound_gen(mu, cova
     % calculate derivative and multiplier updates using function
     % [gam_ins, del_ins, C, lam_new] = multiplier_update(F, B, S, D, w, invcovarF, covarFB, muF, lam_current, lb, ub, true);
     % trying to tread gamma and delta from here as vectors
-    [gam_vec, del_vec, C, lam_vec] = multiplier_update(F, B, S, D, w, invcovarF, covarFB, muF, lam_current, lb, ub, true);
+    [gam_vec, del_vec, C, lam_vec, bound] = multiplier_update(F, B, S, D, w, invcovarF, covarFB, muF, lam_current, lb, ub, true);
 
     % TODO check if there's a more efficient way to do this allocation
     % QUESTION is this actually even needed anymore? 
@@ -58,7 +58,7 @@ function [ins, lam_ins, gam_ins, del_ins, b_ins, d] = move_to_bound_gen(mu, cova
     % BUG need to pass b back from update, not passed currently
     % only need d if running the full KKT check
     if (KKT == 1) || (KKT == 3)
-        d = b;
+        d = bound;
         d(B) = w(B);
     else
         d = NaN;
@@ -77,8 +77,8 @@ function [ins, lam_ins, gam_ins, del_ins, b_ins, d] = move_to_bound_gen(mu, cova
         % can't move sole free sire to bound
         ins = NaN; b_ins = NaN; gam_ins = NaN; del_ins = NaN; d = NaN; lam_ins = -inf;
     else
-        % found a turning point, return b
-        b_ins = b(ins);
+        % found a turning point, return bound
+        b_ins = bound(ins);
         gam_ins = gam(ins);
         del_ins = del(ins);
     end

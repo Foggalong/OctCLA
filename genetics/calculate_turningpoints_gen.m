@@ -33,7 +33,7 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT)
 
     while true
         % case a where a free asset moves to its bound
-        [i_ins, lam_ins, gam_ins, del_ins, b, d_ins] = move_to_bound_gen(mu, covar, invcovarF, lb, ub, F, B, S, D, lam_current, ws(:,t), KKT);
+        [i_ins, lam_ins, gam_ins, del_ins, bound, d_ins] = move_to_bound_gen(mu, covar, invcovarF, lb, ub, F, B, S, D, lam_current, ws(:,t), KKT);
         % case b where an asset on its bound becomes free
         [i_outs, lam_outs, gam_outs, del_outs, d_outs] = becomes_free_gen(mu, covar, invcovarF, mu(F), lb, ub, F, B, S, D, lam_current, ws(:,t), KKT);
 
@@ -45,7 +45,7 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT)
                 % make lam = 0 the last iteration
                 lam_current = 0;
                 % since lambda changed, recalculate gamma and delta
-                [gam, del, C_null, lam_null] = multiplier_update(F, B, S, D, ws(F,t), invcovarF, covar(F,B), mu(F), lam_current, lb, ub, false);
+                [gam, del, C_null, lam_null, b_null] = multiplier_update(F, B, S, D, ws(F,t), invcovarF, covar(F,B), mu(F), lam_current, lb, ub, false);
                 % don't need C or lambda, so choice of m2b redudent
             else
                 % can compare without tol since came from max
@@ -65,7 +65,7 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT)
             F_D = subindex(D, F);
             F_S = subindex(S, F);
             ws(F,t) = lam_current*(invcovarF*mu(F)) + [gam*sum(invcovarF(F_S,F_S), 2)', del*sum(invcovarF(F_D,F_D), 2)']';
-            % have an extra term unless b is empty
+            % have an extra term unless B is empty
             if ~isempty(B)
                 ws(F,t) = ws(F,t) - invcovarF*(covar(F,B)*ws(B,t));
             end
@@ -82,7 +82,8 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT)
                 % bound weight i_ins
                 F = F(F ~= i_ins);  % F = F\{i}
                 B = [B, i_ins];     % B = Bu{i}
-                % ws(i_ins, t) = b;   % w_i_inside^(t) = b  % TODO is this line needed?
+                % TODO is the below line needed?
+                ws(i_ins, t) = bound;
                 % only need to update d if doing full KKT check
                 if (KKT == 1) || (KKT == 3); d = d_ins; end
             else
@@ -131,5 +132,5 @@ function ws = calculate_turningpoints_gen(mu, covar, lb, ub, S, D, KKT)
         end
     end
     % only return w2, w3, etc since w0 and w1 coincide
-    ws = ws(:, 2:end)';  % TODO work out why
+    ws = ws(:, 2:end)';
 end

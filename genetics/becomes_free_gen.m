@@ -48,7 +48,7 @@ function [outs, lam_outs, gam_outs, del_outs d] = becomes_free_gen(mu, covar, in
 
         % calculate derivative and multiplier updates using function
         % BUG this is calculating MANY unneeded values just to get the ith
-        [gam_vec, del_vec, Ci, lam_vec] = multiplier_update(Fi, Bi, S, D, w, invcovarFi, covarFiBi, mu(Fi), lam_current, lb, ub, false);
+        [gam_vec, del_vec, Ci, lam_vec, b_null] = multiplier_update(Fi, Bi, S, D, w, invcovarFi, covarFiBi, mu(Fi), lam_current, lb, ub, false);
         lam(i) = lam_vec(j);
         del(i) = del_vec(j);
         gam(i) = gam_vec(j);
