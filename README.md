@@ -21,7 +21,7 @@ An overview of the functions involved can be found in [`finance/`](finance/READM
 The "genetics" implementation explores a similar optimal contribution selection (OCS) problem
 
 $$
-    \min_{\boldsymbol{w}} \left(\boldsymbol{w}^T\boldsymbol{\mu}\right),\ \max_{\boldsymbol{w}} \left(\boldsymbol{w}^T\Sigma\boldsymbol{w}\right)\ \text{ subject to }\ \boldsymbol{w}\geq0,\ \boldsymbol{w}^T_{\mathcal{S}}\boldsymbol{e}_{\mathcal{S}}^{} = \frac{1}{2}, \boldsymbol{w}^T_{\mathcal{D}}\boldsymbol{e}_{\mathcal{D}}^{} = \frac{1}{2},\ \boldsymbol{l}\leq \boldsymbol{w}\leq \boldsymbol{u},
+    \min_{\boldsymbol{w}} \left(\boldsymbol{w}^T\boldsymbol{\mu}\right),\ \max_{\boldsymbol{w}} \left(\boldsymbol{w}^T\Sigma\boldsymbol{w}\right)\ \text{ subject to }\ \boldsymbol{w}\geq0,\ \boldsymbol{w}\_{\mathcal{S}}^{T}\boldsymbol{e}\_{\mathcal{S}}^{} = \frac{1}{2},\ \boldsymbol{w}\_{\mathcal{D}}^{T}\boldsymbol{e}\_{\mathcal{D}}^{} = \frac{1}{2},\ \boldsymbol{l}\leq \boldsymbol{w}\leq \boldsymbol{u},
 $$
 
 where $\mathcal{S}$ and $\mathcal{D}$ are two index sets which partition the complete set of asset indices.
