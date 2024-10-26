@@ -63,7 +63,7 @@ function [ins, lam_ins, gam_ins, del_ins, b_ins, d] = move_to_bound_gen(mu, cova
     else
         d = NaN;
     end
-    
+
     % check whether found new turning point
     [lam_ins, ins] = max_bounded(lam, lam_current);
 

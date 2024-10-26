@@ -1,7 +1,7 @@
 % This file is part of OctCLA, Copyright (c) 2022 Josh Fogg, released
 % under the MIT License. See: https://github.com/Foggalong/OctCLA
 
-function result = kkt_partitioned_gen(covar, w, lam, gam, del, mu, B, F, S, D, tol)
+function result = kkt_partitioned_gen(covar, w_t, lam, gam, del, mu, B, F, S, D, tol)
     % KKT_PARTITIONED_GEN equivalent  $ TODO update
     %
     % TODO write a docstring
@@ -31,7 +31,7 @@ function result = kkt_partitioned_gen(covar, w, lam, gam, del, mu, B, F, S, D, t
     gam_del_vector(D) = del;
 
     % Check KKT(1): Lagrangian is zero
-    delwL = covar(F,F)*w(F) + covar(F,B)*w(B) - lam*mu(F) - gam_del_vector;
+    delwL = covar(F,F)*w_t(F) + covar(F,B)*w_t(B) - lam*mu(F) - gam_del_vector(F);
     if abs(delwL) > tol
         disp('Broke KKT(1)');
         delwL

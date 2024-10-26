@@ -89,11 +89,14 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
     end
 
     % derivatives of previous multipliers with respect to lambda
-    dGam_dLam = (b*y_p2 - a*x_p2)/determinant;
-    dDel_dLam = (c*x_p2 - a*y_p2)/determinant;
+    dGam_dLam = (a*x_p2 - b*y_p2)/determinant;
+    dDel_dLam = (a*y_p2 - c*x_p2)/determinant;
+    % BUG this is what I wrote first, think it's the wrong way around
+    % dGam_dLam = (b*y_p2 - a*x_p2)/determinant
+    % dDel_dLam = (c*x_p2 - a*y_p2)/determinant
 
     % C(i) indicates if asset i is moving to its upper or lower bound
-    C = invcovarF * ([repmat(dGam_dLam, size(F_S)), repmat(dDel_dLam, size(F_D))] + muF);
+    C = invcovarF * ([repmat(dGam_dLam, size(F_S)), repmat(dDel_dLam, size(F_D))]' + muF);
 
     % lambda update equation is separated into chunks for readability.
     % the first of these chunks is determined by whether we're considering
@@ -106,9 +109,9 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
         % in move_to_bound, so b(i) determined based on derivative
         for j = 1:length(F)
             i = F(j);  % need to index outer matrix, as per NOTE A1
-            if C(j) > 0
+            if C(j) < 0  % BUG originally >, think that was wrong
                 bound(i) = ub(i);
-            elseif C(j) < 0
+            elseif C(j) > 0  % BUG originally <, think that was wrong
                 bound(i) = lb(i);
             else  % C(j) == 0
                 continue % since |F| > 1, C(j) == 0 iff all mu(i) equal
@@ -129,11 +132,23 @@ function [gam, del, C, lambda] = multiplier_update(F, B, S, D, w, invcovarF, cov
         end
     end
 
-    lam_num_p2 = [repmat(b*y_p1 - a*x_p1, size(F_S)), repmat(c*x_p1 - a*y_p1, size(F_D))]';
-    lam_den_p1 = [repmat(b*y_p2 - a*x_p2, size(F_S)), repmat(c*x_p2 - a*y_p2, size(F_D))]';
+    % THIS IS BROKEN, NOT SURE WHY BUT DON'T USE IT -ed
+    % lam_num_p2 = [repmat(b*y_p1 - a*x_p1, size(F_S)), repmat(c*x_p1 - a*y_p1, size(F_D))]';
+    % lam_den_p1 = [repmat(b*y_p2 - a*x_p2, size(F_S)), repmat(c*x_p2 - a*y_p2, size(F_D))]';
+    
+    % DEBUG
+    lam_num_p2 = zeros(size(F))';
+    lam_num_p2(F_S) = b*y_p1 - a*x_p1;
+    lam_num_p2(F_D) = c*x_p1 - a*y_p1;
+    
+    lam_den_p1 = zeros(size(F))';
+    lam_den_p1(F_S) = b*y_p2 - a*x_p2;
+    lam_den_p1(F_D) = c*x_p2 - a*y_p2;
 
     lam_den_p2 = invcovarF*(lam_den_p1 + determinant*muF);
     lambda = (lam_num_p1 + invcovarF*lam_num_p2)./lam_den_p2;
+
+    % DEBUG = lambda
 
     % matrix entries on the RHS of the multipler linear system
     x = x_p1 - lambda*x_p2;
