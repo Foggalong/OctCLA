@@ -36,7 +36,7 @@ truth = csvread("demos/data/truth.csv");
 % check if any entry in absolute error matrix greater than tolerance
 tol = 1e-10;
 abs_error = abs(truth - sols);
-if any(any(abs_error > tol) > 0) then
+if any(any(abs_error > tol) > 0)
     disp("ERROR!")
     abs_error
 else
@@ -80,7 +80,7 @@ sols
 % check if any entry in absolute error matrix greater than tolerance
 tol = 1e-10;
 abs_error = abs(truth - sols);
-if any(any(abs_error > tol) > 0) then
+if any(any(abs_error > tol) > 0)
     disp("ERROR!")
     abs_error
 else
